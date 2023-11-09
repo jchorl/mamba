@@ -828,6 +828,7 @@ namespace mamba
 
     void MTransaction::output_conda_lock(const fs::u8path output_file)
     {
+        LOG_INFO << "JOSH output_conda_lock";
         for_each_to_install(
             m_solution.actions,
             [&](const auto& pkg)
@@ -835,10 +836,12 @@ namespace mamba
                 if (need_pkg_download(pkg, m_multi_cache))
                 {
                 // TODO either add to array or yeet straight to file
-                    to_fetch.push_back(pkg.json_record());
+                // to_fetch.push_back(pkg.json_record());
+                    LOG_INFO << "JOSH to_fetch";
                 }
                 // TODO figure this out
-                to_link.push_back(pkg.json_record());
+                // to_link.push_back(pkg.json_record());
+                LOG_INFO << "JOSH to_link";
             }
         );
     }

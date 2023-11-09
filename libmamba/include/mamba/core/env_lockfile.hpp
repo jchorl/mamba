@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #include <tl/expected.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "mamba/fs/filesystem.hpp"
 

@@ -25,6 +25,12 @@ set_install_command(CLI::App* subcom, Configuration& config)
         force_reinstall.get_cli_config<bool>(),
         force_reinstall.description()
     );
+    auto& output_conda_lock = config.at("output_conda_lock");
+    subcom->add_option(
+        "--output-conda-lock",
+        output_conda_lock.get_cli_config<fs::u8path>(),
+        output_conda_lock.description()
+    );
 
     subcom->callback([&] { return mamba::install(config); });
 }
