@@ -604,6 +604,11 @@ namespace mamba
             trans.log_json();
         }
 
+        if (!ctx.output_params.output_conda_lock.empty())
+        {
+            trans.output_conda_lock(ctx.output_params.output_conda_lock);
+        }
+
         Console::stream();
 
         if (trans.prompt())

@@ -54,6 +54,7 @@ namespace mamba
 
         to_conda_type to_conda();
         void log_json();
+        void output_conda_lock(const fs::u8path);
         bool fetch_extract_packages();
         bool empty();
         bool prompt();

@@ -104,6 +104,10 @@ namespace mamba
             return m_metadata;
         }
 
+        const YAML::Node yaml_value() const {
+
+        }
+
     private:
 
         Meta m_metadata;

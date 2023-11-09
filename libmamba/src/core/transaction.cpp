@@ -826,6 +826,23 @@ namespace mamba
         add_json(to_unlink, "UNLINK");
     }
 
+    void MTransaction::output_conda_lock(const fs::u8path output_file)
+    {
+        for_each_to_install(
+            m_solution.actions,
+            [&](const auto& pkg)
+            {
+                if (need_pkg_download(pkg, m_multi_cache))
+                {
+                // TODO either add to array or yeet straight to file
+                    to_fetch.push_back(pkg.json_record());
+                }
+                // TODO figure this out
+                to_link.push_back(pkg.json_record());
+            }
+        );
+    }
+
     namespace
     {
         using FetcherList = std::vector<PackageFetcher>;
