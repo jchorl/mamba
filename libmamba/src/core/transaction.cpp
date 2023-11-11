@@ -839,28 +839,27 @@ namespace mamba
                     /* .is_optional = */ false,
                     /* .category = */ "main", // TODO fill for real
                     /* .manager = */ "conda", // TODO fill for real
-                    /* .platform = */ "linux-64", // TODO fill for real
+                    /* .platform = */ m_pool.context().platform,
                 };
                 packages.push_back(package);
             }
         );
 
+        std::vector<EnvironmentLockFile::Channel> channels;
+        for (const auto& channel : m_pool.context().channels) {
+            channels.push_back({
+                /* .url = */ channel,
+                /* .used_env_vars = */ {},
+            });
+        }
+
         EnvironmentLockFile::Meta meta = {
             /* .content_hash = */ {
-                {"linux-64", "1585aa90b60d09094f18d1f66bee45d1233f7d15727ee67a335ef9085b2ff3a3"}, // TODO don't hardcode
+                {m_pool.context().platform, "<invalid TODO>"}, // TODO fill like conda-lock: https://github.com/conda/conda-lock/blob/c18d8f2a3c172584a1b8fee2233f767e158fb3f5/conda_lock/models/lock_spec.py#L79
             },
-            /* .channels = */ {
-                {
-                    /*.url = */ "conda-forge",
-                    /*.used_env_vars = */ {},
-                },
-                {
-                    /*.url = */ "defaults",
-                    /*.used_env_vars = */ {},
-                },
-            },
-            /* .platforms = */ {"linux-64"},
-            /* .sources = */ {"environment.yml"},
+            /* .channels = */ channels,
+            /* .platforms = */ m_pool.context().platforms(),
+            /* .sources = */ {}, // TODO not sure what to put
         };
         EnvironmentLockFile lock_file(
             meta,
