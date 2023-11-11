@@ -4,11 +4,14 @@
 //
 // The full license is in the file LICENSE, distributed with this software.
 
+#include <fstream>
+
 #include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
 
 #include "mamba/core/env_lockfile.hpp"
 #include "mamba/core/match_spec.hpp"
+#include "mamba/core/output.hpp"
 #include "mamba/fs/filesystem.hpp"
 #include "mamba/util/string.hpp"
 
@@ -170,6 +173,95 @@ namespace mamba
 
             return EnvironmentLockFile{ std::move(metadata), std::move(packages) };
         }
+
+        void write_environment_lockfile(ChannelContext& channel_context, const EnvironmentLockFile& lockfile, YAML::Emitter& out)
+        {
+            out << YAML::BeginMap;
+            out << YAML::Key << "version";
+            out << YAML::Value << 1;
+
+            out << YAML::Key << "metadata";
+            out << YAML::Value << YAML::BeginMap;
+
+            out << YAML::Key << "content_hash";
+            out << YAML::Value << YAML::BeginMap;
+            for (const auto& [key, val] : lockfile.get_metadata().content_hash) {
+                out << YAML::Key << key;
+                out << YAML::Value << val;
+            }
+            out << YAML::Value << YAML::EndMap; // content_hash
+
+            out << YAML::Key << "channels";
+            out << YAML::Value << YAML::BeginSeq;
+            for (const auto& channel : lockfile.get_metadata().channels) {
+                out << YAML::BeginMap;
+                out << YAML::Key << "url";
+                out << YAML::Value << channel.url;
+
+                out << YAML::Key << "used_env_vars";
+                out << YAML::Value;
+                out << channel.used_env_vars;
+
+                out << YAML::EndMap;
+            }
+            out << YAML::Value << YAML::EndSeq; // channels
+
+            out << YAML::Key << "platforms";
+            out << lockfile.get_metadata().platforms;
+
+            out << YAML::Key << "sources";
+            out << lockfile.get_metadata().sources;
+
+            out << YAML::Value << YAML::EndMap; // metadata
+
+            out << YAML::Key << "package";
+            out << YAML::BeginSeq;
+            for (const auto& package : lockfile.get_all_packages()) {
+                out << YAML::BeginMap;
+                out << YAML::Key << "name";
+                out << YAML::Value << package.info.name;
+                out << YAML::Key << "version";
+                out << YAML::Value << package.info.version;
+                out << YAML::Key << "manager";
+                out << YAML::Value << package.manager;
+                out << YAML::Key << "platform";
+                out << YAML::Value << package.platform;
+
+                out << YAML::Key << "dependencies";
+                out << YAML::Value << YAML::BeginMap;
+
+                for (const auto& depend : package.info.depends) {
+                    // this dep parsing is pretty janky. it turns e.g. 'libgcc-ng >=12' into libgcc-ng: ">=12"
+                    // I suspect we should use something like matchspec2id, but we don't have the pool.
+                    auto sp = util::split(depend, " ");
+                    out << YAML::Key << sp[0];
+                    if (sp.size() < 2) {
+                        out << YAML::Value << "";
+                    } else {
+                        out << YAML::Value << sp[1];
+                    }
+                }
+                out << YAML::EndMap;
+
+                out << YAML::Key << "url";
+                out << YAML::Value << package.info.url;
+
+                out << YAML::Key << "hash";
+                out << YAML::Value << YAML::BeginMap;
+                out << YAML::Key << "md5";
+                out << YAML::Value << package.info.md5;
+                out << YAML::Key << "sha256";
+                out << YAML::Value << package.info.sha256;
+                out << YAML::EndMap;
+
+                out << YAML::Key << "category";
+                out << YAML::Value << package.category;
+                out << YAML::Key << "optional";
+                out << YAML::Value << package.is_optional;
+                out << YAML::EndMap;
+            }
+            out << YAML::EndSeq; // package
+        }
     }
 
     tl::expected<EnvironmentLockFile, mamba_error>
@@ -252,5 +344,13 @@ namespace mamba
     bool is_env_lockfile_name(std::string_view filename)
     {
         return util::ends_with(filename, "-lock.yml") || util::ends_with(filename, "-lock.yaml");
+    }
+
+    void write_environment_lockfile(ChannelContext& channel_context, const EnvironmentLockFile& lockfile, const mamba::fs::u8path& lockfile_location)
+    {
+        YAML::Emitter out;
+        env_lockfile_v1::write_environment_lockfile(channel_context, lockfile, out);
+        std::ofstream fout(lockfile_location);
+        fout << out.c_str();
     }
 }

@@ -828,22 +828,46 @@ namespace mamba
 
     void MTransaction::output_conda_lock(const fs::u8path output_file)
     {
-        LOG_INFO << "JOSH output_conda_lock";
+        std::vector<EnvironmentLockFile::Package> packages;
+
         for_each_to_install(
             m_solution.actions,
             [&](const auto& pkg)
             {
-                if (need_pkg_download(pkg, m_multi_cache))
-                {
-                // TODO either add to array or yeet straight to file
-                // to_fetch.push_back(pkg.json_record());
-                    LOG_INFO << "JOSH to_fetch";
-                }
-                // TODO figure this out
-                // to_link.push_back(pkg.json_record());
-                LOG_INFO << "JOSH to_link";
+                EnvironmentLockFile::Package package{
+                    /* .info = */ pkg,
+                    /* .is_optional = */ false,
+                    /* .category = */ "main", // TODO fill for real
+                    /* .manager = */ "conda", // TODO fill for real
+                    /* .platform = */ "linux-64", // TODO fill for real
+                };
+                packages.push_back(package);
             }
         );
+
+        EnvironmentLockFile::Meta meta = {
+            /* .content_hash = */ {
+                {"linux-64", "1585aa90b60d09094f18d1f66bee45d1233f7d15727ee67a335ef9085b2ff3a3"}, // TODO don't hardcode
+            },
+            /* .channels = */ {
+                {
+                    /*.url = */ "conda-forge",
+                    /*.used_env_vars = */ {},
+                },
+                {
+                    /*.url = */ "defaults",
+                    /*.used_env_vars = */ {},
+                },
+            },
+            /* .platforms = */ {"linux-64"},
+            /* .sources = */ {"environment.yml"},
+        };
+        EnvironmentLockFile lock_file(
+            meta,
+            packages
+        );
+
+        write_environment_lockfile(m_pool.channel_context(), lock_file, output_file);
     }
 
     namespace
