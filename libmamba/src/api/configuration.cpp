@@ -626,7 +626,7 @@ namespace mamba
                 }
                 else
                 {
-                    prefix = env::home_directory() / "micromamba";
+                    prefix = fs::u8path(util::user_home_dir()) / "micromamba";
                 }
 
                 if (env_name.configured())
@@ -867,8 +867,10 @@ namespace mamba
 
         std::vector<fs::u8path> fallback_pkgs_dirs_hook(const Context& context)
         {
-            std::vector<fs::u8path> paths = { context.prefix_params.root_prefix / "pkgs",
-                                              env::home_directory() / ".mamba" / "pkgs" };
+            std::vector<fs::u8path> paths = {
+                context.prefix_params.root_prefix / "pkgs",
+                fs::u8path(util::user_home_dir()) / ".mamba" / "pkgs",
+            };
 #ifdef _WIN32
             auto appdata = util::get_env("APPDATA");
             if (appdata)
@@ -877,6 +879,43 @@ namespace mamba
             }
 #endif
             return paths;
+        }
+
+        void custom_channels_hook(std::map<std::string, std::string>& custom_channels)
+        {
+            // Hard coded Anaconda channels names.
+            // This will not redefine them if the user has already defined these keys.
+            custom_channels.emplace("pkgs/main", "https://repo.anaconda.com/pkgs/main");
+            custom_channels.emplace("pkgs/r", "https://repo.anaconda.com/pkgs/r");
+            custom_channels.emplace("pkgs/pro", "https://repo.anaconda.com/pkgs/pro");
+            if (util::on_win)
+            {
+                custom_channels.emplace("pkgs/msys2", "https://repo.anaconda.com/pkgs/msys2");
+            }
+        }
+
+        void custom_multichannels_hook(
+            const Context& context,
+            std::map<std::string, std::vector<std::string>>& custom_multichannels
+        )
+        {
+            custom_multichannels.emplace("defaults", context.default_channels);
+
+            auto local_channels = std::vector<std::string>();
+            local_channels.reserve(3);
+            for (auto p : {
+                     context.prefix_params.target_prefix / "conda-bld",
+                     context.prefix_params.root_prefix / "conda-bld",
+                     fs::u8path(util::user_home_dir()) / "conda-bld",
+                 })
+            {
+                if (fs::exists(p))
+                {
+                    local_channels.push_back(std::move(p));
+                }
+            }
+
+            custom_multichannels.emplace("local", std::move(local_channels));
         }
 
         void pkgs_dirs_hook(std::vector<fs::u8path>& dirs)
@@ -999,7 +1038,14 @@ namespace mamba
                 out << YAML::BeginSeq;
                 for (std::size_t n = 0; n < value.size(); ++n)
                 {
-                    print_node(out, value[n], source[n], show_source);
+                    if (source.IsSequence() && (source.size() == value.size()))
+                    {
+                        print_node(out, value[n], source[n], show_source);
+                    }
+                    else
+                    {
+                        print_node(out, value[n], source, show_source);
+                    }
                 }
                 out << YAML::EndSeq;
             }
@@ -1264,14 +1310,28 @@ namespace mamba
                    .set_rc_configurable()
                    .set_env_var_names()
                    .description("Custom channels")
-                   .long_description("A dictionary with name: url to use for custom channels."));
+                   .long_description(  //
+                       "A dictionary with name: url to use for custom channels.\n"
+                       "If not defined, the Conda special names "
+                       R"("pkgs/main", "pkgs/r", "pkgs/pro", and "pkgs/msys2" (Windows only) )"
+                       "will be added."
+                   )
+                   .set_post_merge_hook(detail::custom_channels_hook));
 
         insert(Configurable("custom_multichannels", &m_context.custom_multichannels)
                    .group("Channels")
                    .set_rc_configurable()
                    .description("Custom multichannels")
-                   .long_description(
-                       "A dictionary with name: list of names/urls to use for custom multichannels."
+                   .long_description(  //
+                       "A dictionary where keys are multi channels names, and values are a list "
+                       "of correspinding names / urls / file paths to use.\n"
+                       R"(If not defined, the Conda special mutli channels "defaults" is added )"
+                       R"(with values from the "default_channels" option, and "local" is added )"
+                       R"(with "~/conda-bld" and target and root prefix "conda-bld" subfolders/)"
+                   )
+                   .needs({ "default_channels", "target_prefix", "root_prefix" })
+                   .set_post_merge_hook<std::map<std::string, std::vector<std::string>>>(
+                       [this](auto& val) { detail::custom_multichannels_hook(m_context, val); }
                    ));
 
         insert(Configurable("override_channels_enabled", &m_context.override_channels_enabled)
@@ -1851,13 +1911,13 @@ namespace mamba
                                          context.prefix_params.root_prefix / ".mambarc" };
 
         std::vector<fs::u8path> conda_user = {
-            env::user_config_dir() / "../conda/.condarc",
-            env::user_config_dir() / "../conda/condarc",
-            env::user_config_dir() / "../conda/condarc.d",
-            env::home_directory() / ".conda/.condarc",
-            env::home_directory() / ".conda/condarc",
-            env::home_directory() / ".conda/condarc.d",
-            env::home_directory() / ".condarc",
+            fs::u8path(util::user_config_dir()) / "conda/.condarc",
+            fs::u8path(util::user_config_dir()) / "conda/condarc",
+            fs::u8path(util::user_config_dir()) / "conda/condarc.d",
+            fs::u8path(util::user_home_dir()) / ".conda/.condarc",
+            fs::u8path(util::user_home_dir()) / ".conda/condarc",
+            fs::u8path(util::user_home_dir()) / ".conda/condarc.d",
+            fs::u8path(util::user_home_dir()) / ".condarc",
         };
         if (util::get_env("CONDARC"))
         {
@@ -1865,10 +1925,13 @@ namespace mamba
         }
 
         std::vector<fs::u8path> mamba_user = {
-            env::user_config_dir() / ".mambarc",      env::user_config_dir() / "mambarc",
-            env::user_config_dir() / "mambarc.d",     env::home_directory() / ".mamba/.mambarc",
-            env::home_directory() / ".mamba/mambarc", env::home_directory() / ".mamba/mambarc.d",
-            env::home_directory() / ".mambarc",
+            fs::u8path(util::user_config_dir()) / "mamba/.mambarc",
+            fs::u8path(util::user_config_dir()) / "mamba/mambarc",
+            fs::u8path(util::user_config_dir()) / "mamba/mambarc.d",
+            fs::u8path(util::user_home_dir()) / ".mamba/.mambarc",
+            fs::u8path(util::user_home_dir()) / ".mamba/mambarc",
+            fs::u8path(util::user_home_dir()) / ".mamba/mambarc.d",
+            fs::u8path(util::user_home_dir()) / ".mambarc",
         };
         if (util::get_env("MAMBARC"))
         {

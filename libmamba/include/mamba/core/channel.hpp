@@ -7,13 +7,15 @@
 #ifndef MAMBA_CORE_CHANNEL_HPP
 #define MAMBA_CORE_CHANNEL_HPP
 
-#include <map>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
+#include "mamba/specs/authentication_info.hpp"
 #include "mamba/specs/conda_url.hpp"
 #include "mamba/util/flat_set.hpp"
+#include "mamba/util/weakening_map.hpp"
 
 namespace mamba
 {
@@ -28,25 +30,58 @@ namespace mamba
         class ChannelSpec;
     }
 
-    std::vector<std::string> get_known_platforms();
-
     // Note: Channels can only be created using ChannelContext.
     class Channel
     {
     public:
 
-        Channel(const Channel&) = delete;
-        Channel& operator=(const Channel&) = delete;
-        Channel(Channel&&) noexcept = default;
-        Channel& operator=(Channel&&) noexcept = default;
 
-        ~Channel();
+        struct ResolveParams
+        {
+            /**
+             * The weakener for @ref ResolveParams::custom_channels.
+             */
+            struct NameWeakener
+            {
+                /**
+                 * Return the key unchanged.
+                 */
+                [[nodiscard]] auto make_first_key(std::string_view key) const -> std::string_view;
 
-        const std::string& location() const;
-        const std::string& name() const;
-        const std::string& canonical_name() const;
-        const util::flat_set<std::string>& platforms() const;
-        const specs::CondaURL& url() const;
+                /**
+                 * Remove the last element of the '/'-separated name.
+                 */
+                [[nodiscard]] auto weaken_key(std::string_view key) const
+                    -> std::optional<std::string_view>;
+            };
+
+            using platform_list = util::flat_set<std::string>;
+            using channel_list = std::vector<Channel>;
+            using channel_map = util::weakening_map<std::unordered_map<std::string, Channel>, NameWeakener>;
+            using multichannel_map = std::unordered_map<std::string, channel_list>;
+
+            const platform_list& platforms;
+            const specs::CondaURL& channel_alias;
+            const channel_map& custom_channels;
+            const specs::AuthenticationDataBase& auth_db;
+
+            // TODO add CWD and home
+        };
+
+        using platform_list = util::flat_set<std::string>;
+
+        [[nodiscard]] static auto resolve(specs::ChannelSpec spec, ResolveParams params) -> Channel;
+
+        Channel(specs::CondaURL url, std::string display_name, util::flat_set<std::string> platforms = {});
+
+        [[nodiscard]] auto url() const -> const specs::CondaURL&;
+        void set_url(specs::CondaURL url);
+
+        [[nodiscard]] auto platforms() const -> const platform_list&;
+        void set_platforms(platform_list platforms);
+
+        [[nodiscard]] auto display_name() const -> const std::string&;
+        void set_display_name(std::string display_name);
 
         std::string base_url() const;
         std::string platform_url(std::string_view platform, bool with_credential = true) const;
@@ -57,38 +92,34 @@ namespace mamba
 
     private:
 
-        Channel(
-            specs::CondaURL url,
-            std::string location,
-            std::string name,
-            std::string canonical_name,
-            util::flat_set<std::string> platforms = {}
-        );
-
         specs::CondaURL m_url;
-        std::string m_location;
-        std::string m_name;
-        std::string m_canonical_name;
+        std::string m_display_name;
         util::flat_set<std::string> m_platforms;
-
-        // Note: as long as Channel is not a regular value-type and we want each
-        // instance only possible to create through ChannelContext, we need
-        // to have Channel's constructor only available to ChannelContext,
-        // therefore enabling it's use through this `friend` statement.
-        // However, all this should be removed as soon as Channel is changed to
-        // be a regular value-type (regular as in the regular concept).
-        friend class ChannelContext;
     };
 
-    using ChannelCache = std::map<std::string, Channel>;
+    /** Tuple-like equality of all observable members */
+    auto operator==(const Channel& a, const Channel& b) -> bool;
+    auto operator!=(const Channel& a, const Channel& b) -> bool;
+}
+
+template <>
+struct std::hash<mamba::Channel>
+{
+    auto operator()(const mamba::Channel& c) const -> std::size_t;
+};
+
+
+namespace mamba
+{
 
     class ChannelContext
     {
     public:
 
-        using channel_list = std::vector<std::string>;
-        using channel_map = std::map<std::string, Channel>;
-        using multichannel_map = std::map<std::string, std::vector<std::string>>;
+        using channel_map = Channel::ResolveParams::channel_map;
+        using channel_list = Channel::ResolveParams::channel_list;
+        using platform_list = Channel::ResolveParams::platform_list;
+        using multichannel_map = std::unordered_map<std::string, channel_list>;
 
         ChannelContext(Context& context);
         ~ChannelContext();
@@ -99,7 +130,7 @@ namespace mamba
         ChannelContext& operator=(ChannelContext&&) = delete;
 
         const Channel& make_channel(const std::string& value);
-        std::vector<const Channel*> get_channels(const std::vector<std::string>& channel_names);
+        auto get_channels(const std::vector<std::string>& channel_names) -> channel_list;
 
         const specs::CondaURL& get_channel_alias() const;
         const channel_map& get_custom_channels() const;
@@ -112,29 +143,16 @@ namespace mamba
 
     private:
 
+        using ChannelCache = std::map<std::string, Channel>;
+
         Context& m_context;
         ChannelCache m_channel_cache;
         specs::CondaURL m_channel_alias;
+        platform_list m_platforms;
         channel_map m_custom_channels;
         multichannel_map m_custom_multichannels;
 
         void init_custom_channels();
-
-        Channel make_simple_channel(
-            const specs::CondaURL& channel_alias,
-            const std::string& channel_url,
-            const std::string& channel_name,
-            const std::string& channel_canonical_name
-        );
-
-        Channel from_any_path(specs::ChannelSpec&& spec);
-        Channel from_package_path(specs::ChannelSpec&& spec);
-        Channel from_path(specs::ChannelSpec&& spec);
-        Channel from_any_url(specs::ChannelSpec&& spec);
-        Channel from_package_url(specs::ChannelSpec&& spec);
-        Channel from_url(specs::ChannelSpec&& spec);
-        Channel from_name(specs::ChannelSpec&& spec);
-        Channel from_value(const std::string& value);
     };
 
 }  // namespace mamba

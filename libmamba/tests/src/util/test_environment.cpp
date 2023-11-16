@@ -6,7 +6,10 @@
 
 #include <doctest/doctest.h>
 
+#include "mamba/util/build.hpp"
 #include "mamba/util/environment.hpp"
+
+#include "mambatests.hpp"
 
 using namespace mamba::util;
 
@@ -14,12 +17,16 @@ TEST_SUITE("util::environment")
 {
     TEST_CASE("get_env")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         CHECK_FALSE(get_env("VAR_THAT_DOES_NOT_EXIST_XYZ").has_value());
         CHECK(get_env("PATH").has_value());
     }
 
     TEST_CASE("set_env")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         SUBCASE("ASCII")
         {
             const auto key = std::string(u8"VAR_THAT_DOES_NOT_EXIST_XYZ");
@@ -45,6 +52,8 @@ TEST_SUITE("util::environment")
 
     TEST_CASE("unset_env")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         const auto key = std::string(u8"VAR_THAT_DOES_NOT_EXIST_ABC_😀");
         CHECK_FALSE(get_env(key).has_value());
         unset_env(key);
@@ -57,6 +66,8 @@ TEST_SUITE("util::environment")
 
     TEST_CASE("get_env_map")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         auto env = mamba::util::get_env_map();
         CHECK_GT(env.size(), 0);
         CHECK_EQ(env.count("VAR_THAT_MUST_NOT_EXIST_XYZ"), 0);
@@ -71,6 +82,8 @@ TEST_SUITE("util::environment")
 
     TEST_CASE("update_env_map")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         const auto key_inexistant = std::string(u8"CONDA😀");
         const auto key_unchanged = std::string(u8"MAMBA😀");
         const auto key_changed = std::string(u8"PIXI😀");
@@ -94,6 +107,8 @@ TEST_SUITE("util::environment")
 
     TEST_CASE("set_env_map")
     {
+        const auto restore = mambatests::EnvironmentCleaner();
+
         const auto key_inexistant = std::string(u8"CONDA🤗");
         const auto key_unchanged = std::string(u8"MAMBA🤗");
         const auto key_changed = std::string(u8"PIXI🤗");
@@ -113,5 +128,68 @@ TEST_SUITE("util::environment")
         CHECK_EQ(get_env(key_inexistant), std::nullopt);
         CHECK_EQ(get_env(key_unchanged), std::nullopt);  // Difference with update_env_map
         CHECK_EQ(get_env(key_changed), val_set_2);
+    }
+
+    TEST_CASE("user_home_dir")
+    {
+        const auto restore = mambatests::EnvironmentCleaner();
+
+        SUBCASE("default")
+        {
+            [[maybe_unused]] const auto home = user_home_dir();  // Must not raise error
+
+            if (!on_win)
+            {
+                unset_env("HOME");
+                CHECK_EQ(user_home_dir(), home);  // Fallback does not need $HOME
+            }
+        }
+
+        SUBCASE("explicit")
+        {
+            if (on_win)
+            {
+                set_env("USERPROFILE", R"(D:\user\mamba)");
+                CHECK_EQ(user_home_dir(), R"(D:\user\mamba)");
+
+                unset_env("USERPROFILE");
+                set_env("HOMEDRIVE", R"(D:\user\)");
+                set_env("HOMEPATH", "mamba");
+                CHECK_EQ(user_home_dir(), R"(D:\user\mamba)");
+            }
+            else
+            {
+                set_env("HOME", "/user/mamba");
+                CHECK_EQ(user_home_dir(), "/user/mamba");
+            }
+        }
+    }
+
+    TEST_CASE("user_xdg")
+    {
+        const auto restore = mambatests::EnvironmentCleaner();
+
+        SUBCASE("XDG environment variables")
+        {
+            update_env_map({
+                { "XDG_CONFIG_HOME", "xconfig" },
+                { "XDG_DATA_HOME", "xdata" },
+                { "XDG_CACHE_HOME", "xcache" },
+            });
+            CHECK_EQ(user_config_dir(), "xconfig");
+            CHECK_EQ(user_data_dir(), "xdata");
+            CHECK_EQ(user_cache_dir(), "xcache");
+        }
+
+        SUBCASE("Defaults")
+        {
+            if (!on_win)
+            {
+                set_env_map({ { "HOME", "/user/mamba" } });
+                CHECK_EQ(user_config_dir(), "/user/mamba/.config");
+                CHECK_EQ(user_data_dir(), "/user/mamba/.local/share");
+                CHECK_EQ(user_cache_dir(), "/user/mamba/.cache");
+            }
+        }
     }
 }

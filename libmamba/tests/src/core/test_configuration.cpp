@@ -11,10 +11,10 @@
 #include "mamba/core/environment.hpp"
 #include "mamba/core/util.hpp"
 #include "mamba/util/environment.hpp"
+#include "mamba/util/path_manip.hpp"
 #include "mamba/util/string.hpp"
 
 #include "mambatests.hpp"
-#include "test_data.hpp"
 
 namespace mamba
 {
@@ -111,6 +111,7 @@ namespace mamba
             std::string m_channel_alias_bu;
             std::string m_ssl_verify;
             std::map<std::string, std::string> m_proxy_servers;
+            mambatests::EnvironmentCleaner restore = { mambatests::CleanMambaEnv() };
         };
 
         TEST_SUITE("Configuration")
@@ -164,7 +165,7 @@ namespace mamba
             TEST_CASE_FIXTURE(Configuration, "parse_condarc")
             {
                 std::vector<fs::u8path> possible_rc_paths = {
-                    test_data_dir / "config/.condarc",
+                    mambatests::test_data_dir / "config/.condarc",
                 };
 
                 config.set_rc_values(possible_rc_paths, RCConfigLevel::kTargetPrefix);
@@ -520,8 +521,8 @@ namespace mamba
 
             TEST_CASE_FIXTURE(Configuration, "pkgs_dirs")
             {
-                std::string cache1 = (env::home_directory() / "foo").string();
-                std::string cache2 = (env::home_directory() / "bar").string();
+                std::string cache1 = util::path_concat(util::user_home_dir(), "foo");
+                std::string cache2 = util::path_concat(util::user_home_dir(), "bar");
 
                 std::string rc1 = "pkgs_dirs:\n  - " + cache1;
                 std::string rc2 = "pkgs_dirs:\n  - " + cache2;
@@ -532,7 +533,7 @@ namespace mamba
                 load_test_config({ rc2, rc1 });
                 CHECK_EQ(config.dump(), "pkgs_dirs:\n  - " + cache2 + "\n  - " + cache1);
 
-                std::string cache3 = (env::home_directory() / "baz").string();
+                std::string cache3 = util::path_concat(util::user_home_dir(), "baz");
                 util::set_env("CONDA_PKGS_DIRS", cache3);
                 load_test_config(rc1);
                 CHECK_EQ(config.dump(), "pkgs_dirs:\n  - " + cache3 + "\n  - " + cache1);
@@ -555,7 +556,7 @@ namespace mamba
                 util::unset_env("CONDA_PKGS_DIRS");
 
                 std::string empty_rc = "";
-                std::string root_prefix_str = (env::home_directory() / "any_prefix").string();
+                std::string root_prefix_str = util::path_concat(util::user_home_dir(), "any_prefix");
                 util::set_env("MAMBA_ROOT_PREFIX", root_prefix_str);
                 load_test_config(empty_rc);
 
@@ -578,13 +579,13 @@ namespace mamba
                                       - )"
                               + (fs::u8path(root_prefix_str) / "pkgs").string() + R"(  # 'fallback'
                                       - )"
-                              + (env::home_directory() / ".mamba" / "pkgs").string()
+                              + (fs::u8path(util::user_home_dir()) / ".mamba" / "pkgs").string()
                               + R"(  # 'fallback')" + extra_cache)
                                  .c_str())
                 );
                 CHECK_EQ(ctx.pkgs_dirs, config.at("pkgs_dirs").value<std::vector<fs::u8path>>());
 
-                std::string cache4 = (env::home_directory() / "babaz").string();
+                std::string cache4 = util::path_concat(util::user_home_dir(), "babaz");
                 util::set_env("CONDA_PKGS_DIRS", cache4);
                 load_test_config(empty_rc);
                 CHECK_EQ(
@@ -1095,13 +1096,13 @@ namespace mamba
             {
                 using namespace detail;
 
-                fs::u8path p = test_data_dir / "config/.condarc";
+                fs::u8path p = mambatests::test_data_dir / "config/.condarc";
 
                 std::vector<fs::u8path> wrong_paths = {
-                    test_data_dir / "config",
-                    test_data_dir / "conf",
-                    test_data_dir / "config/condarc",
-                    test_data_dir / "history/conda-meta/history",
+                    mambatests::test_data_dir / "config",
+                    mambatests::test_data_dir / "conf",
+                    mambatests::test_data_dir / "config/condarc",
+                    mambatests::test_data_dir / "history/conda-meta/history",
                 };
 
                 CHECK(is_config_file(p));
