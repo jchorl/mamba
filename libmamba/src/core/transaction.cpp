@@ -859,7 +859,7 @@ namespace mamba
             },
             /* .channels = */ channels,
             /* .platforms = */ m_pool.context().platforms(),
-            /* .sources = */ {}, // TODO not sure what to put
+            /* .sources = */ {"environment.yml"}, // TODO I don't think we have this value here
         };
         EnvironmentLockFile lock_file(
             meta,
