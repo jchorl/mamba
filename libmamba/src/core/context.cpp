@@ -18,6 +18,7 @@
 #include "mamba/core/thread_utils.hpp"
 #include "mamba/core/util.hpp"
 #include "mamba/core/util_os.hpp"
+#include "mamba/util/encoding.hpp"
 #include "mamba/util/environment.hpp"
 #include "mamba/util/path_manip.hpp"
 #include "mamba/util/string.hpp"
@@ -67,9 +68,22 @@ namespace mamba
         return static_cast<spdlog::level::level_enum>(l);
     }
 
+    namespace
+    {
+        std::atomic<bool> use_default_signal_handler_val{ true };
+    }
+
+    void Context::use_default_signal_handler(bool val)
+    {
+        use_default_signal_handler_val = val;
+    }
+
     void Context::enable_logging_and_signal_handling(Context& context)
     {
-        set_default_signal_handler();
+        if (use_default_signal_handler_val)
+        {
+            set_default_signal_handler();
+        }
 
         context.logger = std::make_shared<Logger>("libmamba", context.output_params.log_pattern, "\n");
         MainExecutor::instance().on_close(
@@ -210,7 +224,7 @@ namespace mamba
                 if (util::ends_with(entry.path().filename().string(), ".token"))
                 {
                     found_tokens.push_back(entry.path());
-                    std::string token_url = util::url_decode(entry.path().filename().string());
+                    std::string token_url = util::decode_percent(entry.path().filename().string());
 
                     // anaconda client writes out a token for https://api.anaconda.org...
                     // but we need the token for https://conda.anaconda.org
@@ -256,7 +270,7 @@ namespace mamba
                     else if (type == "BasicHTTPAuthentication")
                     {
                         const auto& user = el.value("user", "");
-                        auto pass = decode_base64(el["password"].get<std::string>());
+                        auto pass = util::decode_base64(el["password"].get<std::string>());
                         if (pass)
                         {
                             info = specs::BasicHTTPAuthentication{
@@ -293,7 +307,6 @@ namespace mamba
         m_authentication_infos_loaded = true;
     }
 
-
     std::string env_name(const Context& context, const fs::u8path& prefix)
     {
         if (prefix.empty())
@@ -319,7 +332,6 @@ namespace mamba
     {
         return env_name(context, context.prefix_params.target_prefix);
     }
-
 
     void Context::debug_print() const
     {

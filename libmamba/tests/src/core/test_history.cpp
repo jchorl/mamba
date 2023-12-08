@@ -19,7 +19,7 @@
 #include <unistd.h>
 #endif
 
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/history.hpp"
 
 #include "mambatests.hpp"
@@ -45,6 +45,7 @@ namespace mamba
                     fs::remove(aux_file_path);
                     fs::copy(history_file_path, aux_file_path);
                 }
+
                 ~ScopedHistoryFileBackup()
                 {
                     fs::remove(history_file_path);
@@ -52,7 +53,7 @@ namespace mamba
                 }
             } scoped_history_file_backup;
 
-            ChannelContext channel_context{ mambatests::context() };
+            auto channel_context = ChannelContext::make_conda_compatible(mambatests::context());
 
             // Gather history from current history file.
             History history_instance(mambatests::test_data_dir / "history/parse", channel_context);
@@ -96,7 +97,7 @@ namespace mamba
         TEST_CASE("parse_segfault")
         {
             pid_t child = fork();
-            ChannelContext channel_context{ mambatests::context() };
+            auto channel_context = ChannelContext::make_conda_compatible(mambatests::context());
             if (child)
             {
                 int wstatus;

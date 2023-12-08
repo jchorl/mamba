@@ -18,7 +18,7 @@
 
 #include "mamba/api/clean.hpp"
 #include "mamba/api/configuration.hpp"
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/context.hpp"
 #include "mamba/core/download_progress_bar.hpp"
 #include "mamba/core/execution.hpp"
@@ -33,10 +33,11 @@
 #include "mamba/core/subdirdata.hpp"
 #include "mamba/core/transaction.hpp"
 #include "mamba/core/util_os.hpp"
-#include "mamba/core/validate.hpp"
 #include "mamba/core/virtual_packages.hpp"
 #include "mamba/specs/version.hpp"
 #include "mamba/util/string.hpp"
+#include "mamba/validation/tools.hpp"
+#include "mamba/validation/update_framework_v0_6.hpp"
 
 #include "bindings.hpp"
 #include "flat_set_caster.hpp"
@@ -116,17 +117,15 @@ namespace mambapy
         {
             return m_main_executor;
         }
+
         mamba::Context& context()
         {
             return m_context;
         }
+
         mamba::Console& console()
         {
             return m_console;
-        }
-        mamba::ChannelContext& channel_context()
-        {
-            return init_once(p_channel_context, m_context);
         }
 
         mamba::Configuration& config()
@@ -136,11 +135,11 @@ namespace mambapy
 
     private:
 
-        template <class T, class D>
-        T& init_once(std::unique_ptr<T, D>& ptr, mamba::Context& context)
+        template <class T, class D, class Factory>
+        T& init_once(std::unique_ptr<T, D>& ptr, Factory&& factory)
         {
             static std::once_flag init_flag;
-            std::call_once(init_flag, [&] { ptr = std::make_unique<T>(context); });
+            std::call_once(init_flag, [&] { ptr = std::make_unique<T>(factory()); });
             if (!ptr)
             {
                 throw mamba::mamba_error(
@@ -178,7 +177,7 @@ namespace mambapy
         {
             mamba::MSubdirData* p_subdirdata = nullptr;
             std::string m_platform = "";
-            const mamba::Channel* p_channel = nullptr;
+            const mamba::specs::Channel* p_channel = nullptr;
             std::string m_url = "";
         };
 
@@ -186,8 +185,9 @@ namespace mambapy
         using iterator = entry_list::const_iterator;
 
         void create(
+            mamba::Context& ctx,
             mamba::ChannelContext& channel_context,
-            const mamba::Channel& channel,
+            const mamba::specs::Channel& channel,
             const std::string& platform,
             const std::string& full_url,
             mamba::MultiPackageCache& caches,
@@ -197,7 +197,7 @@ namespace mambapy
         {
             using namespace mamba;
             m_subdirs.push_back(extract(
-                MSubdirData::create(channel_context, channel, platform, full_url, caches, repodata_fn)
+                MSubdirData::create(ctx, channel_context, channel, platform, full_url, caches, repodata_fn)
             ));
             m_entries.push_back({ nullptr, platform, &channel, url });
             for (size_t i = 0; i < m_subdirs.size(); ++i)
@@ -269,7 +269,6 @@ bind_submodule_impl(pybind11::module_ m)
 
 
     // declare earlier to avoid C++ types in docstrings
-    auto pyChannel = py::class_<Channel, std::unique_ptr<Channel, py::nodelete>>(m, "Channel");
     auto pyPackageInfo = py::class_<PackageInfo>(m, "PackageInfo");
     auto pyPrefixData = py::class_<PrefixData>(m, "PrefixData");
     auto pySolver = py::class_<MSolver>(m, "Solver");
@@ -294,27 +293,34 @@ bind_submodule_impl(pybind11::module_ m)
     py::add_ostream_redirect(m, "ostream_redirect");
 
     py::class_<MatchSpec>(m, "MatchSpec")
+        .def_static("parse", &MatchSpec::parse)
         .def(py::init<>())
-        .def(py::init<>(
-            [](const std::string& name) {
-                return MatchSpec{ name, mambapy::singletons.channel_context() };
-            }
-        ))
+        .def(
+            // Deprecating would lead to confusing error. Better to make sure people stop using it.
+            py::init(
+                [](std::string_view) -> MatchSpec {
+                    throw std::invalid_argument(
+                        "Use 'MatchSpec.parse' to create a new object from a string"
+                    );
+                }
+            ),
+            py::arg("spec")
+        )
         .def("conda_build_form", &MatchSpec::conda_build_form);
 
     py::class_<MPool>(m, "Pool")
-        .def(py::init<>([] { return MPool{ mambapy::singletons.channel_context() }; }))
+        .def(
+            py::init<>(
+                [](ChannelContext& channel_context) {
+                    return MPool{ mambapy::singletons.context(), channel_context };
+                }
+            ),
+            py::arg("channel_context")
+        )
         .def("set_debuglevel", &MPool::set_debuglevel)
         .def("create_whatprovides", &MPool::create_whatprovides)
         .def("select_solvables", &MPool::select_solvables, py::arg("id"), py::arg("sorted") = false)
-        .def("matchspec2id", &MPool::matchspec2id, py::arg("ms"))
-        .def(
-            "matchspec2id",
-            [](MPool& self, std::string_view ms) {
-                return self.matchspec2id({ ms, mambapy::singletons.channel_context() });
-            },
-            py::arg("ms")
-        )
+        .def("matchspec2id", &MPool::matchspec2id, py::arg("spec"))
         .def("id2pkginfo", &MPool::id2pkginfo, py::arg("id"));
 
     py::class_<MultiPackageCache>(m, "MultiPackageCache")
@@ -483,11 +489,15 @@ bind_submodule_impl(pybind11::module_ m)
         .def("tree_message", [](const CpPbGraph& self) { return problem_tree_msg(self); });
 
     py::class_<History>(m, "History")
-        .def(py::init(
-            [](const fs::u8path& path) {
-                return History{ path, mambapy::singletons.channel_context() };
-            }
-        ))
+        .def(
+            py::init(
+                [](const fs::u8path& path, ChannelContext& channel_context) {
+                    return History{ path, channel_context };
+                }
+            ),
+            py::arg("path"),
+            py::arg("channel_context")
+        )
         .def("get_requested_specs_map", &History::get_requested_specs_map);
 
     /*py::class_<Query>(m, "Query")
@@ -637,7 +647,8 @@ bind_submodule_impl(pybind11::module_ m)
         .def(
             "create",
             [](SubdirIndex& self,
-               const Channel& channel,
+               ChannelContext& channel_context,
+               const specs::Channel& channel,
                const std::string& platform,
                const std::string& full_url,
                MultiPackageCache& caches,
@@ -645,7 +656,8 @@ bind_submodule_impl(pybind11::module_ m)
                const std::string& url)
             {
                 self.create(
-                    mambapy::singletons.channel_context(),
+                    mambapy::singletons.context(),
+                    channel_context,
                     channel,
                     platform,
                     full_url,
@@ -653,7 +665,14 @@ bind_submodule_impl(pybind11::module_ m)
                     repodata_fn,
                     url
                 );
-            }
+            },
+            py::arg("channel_context"),
+            py::arg("channel"),
+            py::arg("platform"),
+            py::arg("full_url"),
+            py::arg("caches"),
+            py::arg("repodata_fn"),
+            py::arg("url")
         )
         .def("download", &SubdirIndex::download)
         .def("__len__", &SubdirIndex::size)
@@ -681,10 +700,38 @@ bind_submodule_impl(pybind11::module_ m)
         .value("CRITICAL", mamba::log_level::critical)
         .value("OFF", mamba::log_level::off);
 
+    py::class_<ChannelContext>(m, "ChannelContext")
+        .def_static("make_simple", &ChannelContext::make_simple)
+        .def_static("make_conda_compatible", &ChannelContext::make_conda_compatible)
+        .def(
+            py::init<specs::ChannelResolveParams, std::vector<specs::Channel>>(),
+            py::arg("params"),
+            py::arg("has_zst")
+        )
+        .def("make_channel", py::overload_cast<std::string_view>(&ChannelContext::make_channel))
+        .def("make_channel", py::overload_cast<specs::ChannelSpec>(&ChannelContext::make_channel))
+        .def("params", &ChannelContext::params)
+        .def("has_zst", &ChannelContext::has_zst);
+
     py::class_<Context, std::unique_ptr<Context, py::nodelete>> ctx(m, "Context");
-    ctx.def(py::init(
-                [] { return std::unique_ptr<Context, py::nodelete>(&mambapy::singletons.context()); }
-            ))
+    ctx  //
+        .def_static(
+            // Still need a singleton as long as mambatest::singleton::context is used
+            "instance",
+            []() -> auto& { return mambapy::singletons.context(); },
+            py::return_value_policy::reference
+        )
+        .def(py::init(
+            // Deprecating would lead to confusing error. Better to make sure people stop using it.
+            []() -> std::unique_ptr<Context, py::nodelete>
+            {
+                throw std::invalid_argument(  //
+                    "Context() will create a new Context object in the future.\n"
+                    "Use Context.instance() to access the global singleton."
+                );
+            }
+        ))
+        .def_static("use_default_signal_handler", &Context::use_default_signal_handler)
         .def_readwrite("offline", &Context::offline)
         .def_readwrite("local_repodata_ttl", &Context::local_repodata_ttl)
         .def_readwrite("use_index_cache", &Context::use_index_cache)
@@ -981,20 +1028,24 @@ bind_submodule_impl(pybind11::module_ m)
     ////////////////////////////////////////////
 
     pyPrefixData
-        .def(py::init(
-            [](const fs::u8path& prefix_path) -> PrefixData
-            {
-                auto sres = PrefixData::create(prefix_path, mambapy::singletons.channel_context());
-                if (sres.has_value())
+        .def(
+            py::init(
+                [](const fs::u8path& prefix_path, ChannelContext& channel_context) -> PrefixData
                 {
-                    return std::move(sres.value());
+                    auto sres = PrefixData::create(prefix_path, channel_context);
+                    if (sres.has_value())
+                    {
+                        return std::move(sres.value());
+                    }
+                    else
+                    {
+                        throw sres.error();
+                    }
                 }
-                else
-                {
-                    throw sres.error();
-                }
-            }
-        ))
+            ),
+            py::arg("path"),
+            py::arg("channel_context")
+        )
         .def_property_readonly("package_records", &PrefixData::records)
         .def("add_packages", &PrefixData::add_packages);
 
@@ -1096,97 +1147,58 @@ bind_submodule_impl(pybind11::module_ m)
         .def_property_readonly("expired", &validation::RoleBase::expired)
         .def("all_keys", &validation::RoleBase::all_keys);
 
-    py::class_<validation::v06::V06RoleBaseExtension, std::shared_ptr<validation::v06::V06RoleBaseExtension>>(
+    py::class_<validation::v0_6::V06RoleBaseExtension, std::shared_ptr<validation::v0_6::V06RoleBaseExtension>>(
         m,
         "RoleBaseExtension"
     )
-        .def_property_readonly("timestamp", &validation::v06::V06RoleBaseExtension::timestamp);
+        .def_property_readonly("timestamp", &validation::v0_6::V06RoleBaseExtension::timestamp);
 
-    py::class_<validation::v06::SpecImpl, validation::SpecBase, std::shared_ptr<validation::v06::SpecImpl>>(
+    py::class_<validation::v0_6::SpecImpl, validation::SpecBase, std::shared_ptr<validation::v0_6::SpecImpl>>(
         m,
         "SpecImpl"
     )
         .def(py::init<>());
 
     py::class_<
-        validation::v06::KeyMgrRole,
+        validation::v0_6::KeyMgrRole,
         validation::RoleBase,
-        validation::v06::V06RoleBaseExtension,
-        std::shared_ptr<validation::v06::KeyMgrRole>>(m, "KeyMgr")
+        validation::v0_6::V06RoleBaseExtension,
+        std::shared_ptr<validation::v0_6::KeyMgrRole>>(m, "KeyMgr")
         .def(py::init<
              const std::string&,
              const validation::RoleFullKeys&,
              const std::shared_ptr<validation::SpecBase>>());
 
     py::class_<
-        validation::v06::PkgMgrRole,
+        validation::v0_6::PkgMgrRole,
         validation::RoleBase,
-        validation::v06::V06RoleBaseExtension,
-        std::shared_ptr<validation::v06::PkgMgrRole>>(m, "PkgMgr")
+        validation::v0_6::V06RoleBaseExtension,
+        std::shared_ptr<validation::v0_6::PkgMgrRole>>(m, "PkgMgr")
         .def(py::init<
              const std::string&,
              const validation::RoleFullKeys&,
              const std::shared_ptr<validation::SpecBase>>());
 
     py::class_<
-        validation::v06::RootImpl,
+        validation::v0_6::RootImpl,
         validation::RoleBase,
-        validation::v06::V06RoleBaseExtension,
-        std::shared_ptr<validation::v06::RootImpl>>(m, "RootImpl")
+        validation::v0_6::V06RoleBaseExtension,
+        std::shared_ptr<validation::v0_6::RootImpl>>(m, "RootImpl")
         .def(py::init<const std::string&>(), py::arg("json_str"))
         .def(
             "update",
-            [](validation::v06::RootImpl& role, const std::string& json_str)
+            [](validation::v0_6::RootImpl& role, const std::string& json_str)
             { return role.update(nlohmann::json::parse(json_str)); },
             py::arg("json_str")
         )
         .def(
             "create_key_mgr",
-            [](validation::v06::RootImpl& role, const std::string& json_str)
+            [](validation::v0_6::RootImpl& role, const std::string& json_str)
             { return role.create_key_mgr(nlohmann::json::parse(json_str)); },
             py::arg("json_str")
         );
 
-    pyChannel
-        .def(py::init(
-            [](const std::string& value) {
-                return const_cast<Channel*>(&mambapy::singletons.channel_context().make_channel(value)
-                );
-            }
-        ))
-        .def_property_readonly("platforms", &Channel::platforms)
-        .def_property_readonly("canonical_name", &Channel::display_name)
-        .def("urls", &Channel::urls, py::arg("with_credentials") = true)
-        .def("platform_urls", &Channel::platform_urls, py::arg("with_credentials") = true)
-        .def("platform_url", &Channel::platform_url, py::arg("platform"), py::arg("with_credentials") = true)
-        .def(
-            "__repr__",
-            [](const Channel& c)
-            {
-                auto s = c.display_name();
-                s += "[";
-                bool first = true;
-                for (const auto& platform : c.platforms())
-                {
-                    if (!first)
-                    {
-                        s += ",";
-                    }
-                    s += platform;
-                    first = false;
-                }
-                s += "]";
-                return s;
-            }
-        );
-
     m.def("clean", [](int flags) { return clean(mambapy::singletons.config(), flags); });
-
-    m.def(
-        "get_channels",
-        [](const std::vector<std::string>& channel_names)
-        { return mambapy::singletons.channel_context().get_channels(channel_names); }
-    );
 
     m.def(
         "transmute",
@@ -1330,9 +1342,9 @@ bind_submodule_impl(pybind11::module_ m)
     m.attr("MAMBA_CLEAN_LOCKS") = MAMBA_CLEAN_LOCKS;
 }
 
-namespace mambapy::legacy
+namespace mambapy
 {
-    void bind_submodule(pybind11::module_ m)
+    void bind_submodule_legacy(pybind11::module_ m)
     {
         bind_submodule_impl(std::move(m));
     }

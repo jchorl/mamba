@@ -1,12 +1,10 @@
 #include "mamba/api/configuration.hpp"
 #include "mamba/api/install.hpp"
-#include "mamba/core/channel.hpp"
 
 #include "common_options.hpp"
 
 
 using namespace mamba;  // NOLINT(build/namespaces)
-
 
 void
 set_install_command(CLI::App* subcom, Configuration& config)

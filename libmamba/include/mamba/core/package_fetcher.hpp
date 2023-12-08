@@ -9,7 +9,6 @@
 
 #include <functional>
 
-#include "mamba/core/channel.hpp"
 #include "mamba/core/download.hpp"
 #include "mamba/core/package_cache.hpp"
 #include "mamba/core/package_handling.hpp"
@@ -79,11 +78,7 @@ namespace mamba
         using post_download_success_t = std::function<void(std::size_t)>;
         using progress_callback_t = std::function<void(PackageExtractEvent)>;
 
-        PackageFetcher(
-            const PackageInfo& pkg_info,
-            ChannelContext& channel_context,
-            MultiPackageCache& caches
-        );
+        PackageFetcher(const PackageInfo& pkg_info, MultiPackageCache& caches);
 
         const std::string& name() const;
 
@@ -104,13 +99,7 @@ namespace mamba
 
     private:
 
-        struct CheckSumParams
-        {
-            std::string expected;
-            std::string actual;
-            std::string name;
-            ValidationResult error;
-        };
+        struct CheckSumParams;
 
         const std::string& filename() const;
         const std::string& url() const;
@@ -119,7 +108,7 @@ namespace mamba
         std::size_t expected_size() const;
 
         ValidationResult validate_size(std::size_t downloaded_size) const;
-        ValidationResult validate_checksum(CheckSumParams params) const;
+        ValidationResult validate_checksum(const CheckSumParams& params) const;
 
         void write_repodata_record(const fs::u8path& base_path) const;
         void update_urls_txt() const;
@@ -127,7 +116,6 @@ namespace mamba
         void update_monitor(progress_callback_t* cb, PackageExtractEvent event) const;
 
         PackageInfo m_package_info;
-        std::string m_url = "";
 
         fs::u8path m_tarball_path;
         fs::u8path m_cache_path;

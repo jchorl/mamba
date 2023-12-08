@@ -522,11 +522,13 @@ namespace mamba::util
         struct has_reserve : std::false_type
         {
         };
+
         template <class T>
         struct has_reserve<T, std::void_t<decltype(std::declval<T>().reserve(std::size_t()))>>
             : std::true_type
         {
         };
+
         template <typename T>
         inline constexpr bool has_reserve_v = has_reserve<T>::value;
 
@@ -534,6 +536,7 @@ namespace mamba::util
         std::size_t length(const wchar_t* s);
         std::size_t length(const char c);
         std::size_t length(const wchar_t c);
+
         template <class T>
         std::size_t length(const T& s)
         {
@@ -656,25 +659,6 @@ namespace mamba::util
         ((result += args), ...);
         return result;
     }
-
-    template <class B>
-    std::string hex_string(const B& buffer, std::size_t size)
-    {
-        std::ostringstream oss;
-        oss << std::hex;
-        for (std::size_t i = 0; i < size; ++i)
-        {
-            oss << std::setw(2) << std::setfill('0') << static_cast<int>(buffer[i]);
-        }
-        return oss.str();
-    }
-
-    template <class B>
-    std::string hex_string(const B& buffer)
-    {
-        return hex_string(buffer, buffer.size());
-    }
-
 }
 
 #endif

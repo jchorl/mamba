@@ -12,7 +12,7 @@
 #include "mamba/api/create.hpp"
 #include "mamba/api/remove.hpp"
 #include "mamba/api/update.hpp"
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/environments_manager.hpp"
 #include "mamba/core/prefix_data.hpp"
 #include "mamba/core/util.hpp"
@@ -42,7 +42,6 @@ get_env_name(const Context& ctx, const mamba::fs::u8path& px)
         return "";
     }
 }
-
 
 void
 set_env_command(CLI::App* com, Configuration& config)
@@ -131,7 +130,7 @@ set_env_command(CLI::App* com, Configuration& config)
             auto& ctx = config.context();
             config.load();
 
-            mamba::ChannelContext channel_context{ ctx };
+            auto channel_context = mamba::ChannelContext::make_conda_compatible(ctx);
             if (explicit_format)
             {
                 // TODO: handle error
@@ -144,11 +143,8 @@ set_env_command(CLI::App* com, Configuration& config)
 
                 for (const auto& record : records)
                 {
-                    auto url = specs::CondaURL::parse(record.url);
-                    url.clear_token();
-                    url.clear_password();
-                    url.clear_user();
-                    std::cout << url.str();
+                    using Credentials = typename specs::CondaURL::Credentials;
+                    std::cout << specs::CondaURL::parse(record.url).str(Credentials::Remove);
                     if (no_md5 != 1)
                     {
                         std::cout << "#" << record.md5;
@@ -176,7 +172,7 @@ set_env_command(CLI::App* com, Configuration& config)
                         continue;
                     }
 
-                    const Channel& channel = channel_context.make_channel(v.channel);
+                    auto chans = channel_context.make_channel(v.channel);
 
                     if (from_history)
                     {
@@ -187,7 +183,10 @@ set_env_command(CLI::App* com, Configuration& config)
                         dependencies << "- ";
                         if (channel_subdir)
                         {
-                            dependencies << channel.display_name() << "/" << v.subdir << "::";
+                            dependencies
+                                // If the size is not one, it's a custom mutli channel
+                                << ((chans.size() == 1) ? chans.front().display_name() : v.channel)
+                                << "/" << v.subdir << "::";
                         }
                         dependencies << v.name << "=" << v.version;
                         if (!no_build)
@@ -201,7 +200,10 @@ set_env_command(CLI::App* com, Configuration& config)
                         dependencies << "\n";
                     }
 
-                    channels.insert(channel.display_name());
+                    for (auto const& chan : chans)
+                    {
+                        channels.insert(chan.display_name());
+                    }
                 }
 
                 for (const auto& c : channels)

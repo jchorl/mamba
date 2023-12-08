@@ -5,8 +5,6 @@
 // The full license is in the file LICENSE, distributed with this software.
 
 
-#include <sstream>
-
 #include <archive.h>
 #include <archive_entry.h>
 #include <reproc++/run.hpp>
@@ -17,8 +15,8 @@
 #include "mamba/core/package_paths.hpp"
 #include "mamba/core/thread_utils.hpp"
 #include "mamba/core/util_os.hpp"
-#include "mamba/core/validate.hpp"
 #include "mamba/util/string.hpp"
+#include "mamba/validation/tools.hpp"
 
 #include "nlohmann/json.hpp"
 
@@ -35,7 +33,6 @@ namespace mamba
                 : extract_subproc_mode::mamba_package,
         };
     }
-
 
     class extraction_guard
     {
@@ -78,6 +75,7 @@ namespace mamba
 
         scoped_archive_read()
             : scoped_archive_read(archive_read_new()){};
+
         static scoped_archive_read read_disk()
         {
             return scoped_archive_read(archive_read_disk_new());
@@ -172,7 +170,6 @@ namespace mamba
 
         archive_entry* m_entry;
     };
-
 
     void stream_extract_archive(
         scoped_archive_read& a,
@@ -612,7 +609,6 @@ namespace mamba
         fs::current_path(prev_path);
     }
 
-
     static la_ssize_t file_read(archive*, void* client_data, const void** buff)
     {
         conda_extract_context* mine = static_cast<conda_extract_context*>(client_data);
@@ -635,7 +631,6 @@ namespace mamba
         archive_read_set_callback_data(a, ctx);
         return archive_read_open1(a);
     }
-
 
     void extract_conda(
         const fs::u8path& file,
@@ -826,7 +821,6 @@ namespace mamba
         return true;
     }
 
-
     bool validate(const fs::u8path& pkg_folder, const ValidationOptions& options)
     {
         auto safety_checks = options.safety_checks;
@@ -882,7 +876,7 @@ namespace mamba
                         }
                     }
                     if (full_validation && !is_invalid && p.path_type != PathType::SOFTLINK
-                        && !validation::sha256(full_path, p.sha256))
+                        && !(validation::sha256sum(full_path) == p.sha256))
                     {
                         LOG_WARNING << "Invalid package cache, file '" << full_path.string()
                                     << "' has incorrect SHA-256 checksum";

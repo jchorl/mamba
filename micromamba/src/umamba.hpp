@@ -9,6 +9,12 @@
 
 #include <CLI/CLI.hpp>
 
+#include "mamba/core/context.hpp"
+
+namespace mamba
+{
+    class Configuration;
+}
 
 void
 set_clean_command(CLI::App* subcom, mamba::Configuration& config);
@@ -50,6 +56,15 @@ void
 set_self_update_command(CLI::App* subcom, mamba::Configuration& config);
 
 void
+set_repoquery_search_command(CLI::App* subcmd, mamba::Configuration& config);
+
+void
+set_repoquery_whoneeds_command(CLI::App* subcmd, mamba::Configuration& config);
+
+void
+set_repoquery_depends_command(CLI::App* subcmd, mamba::Configuration& config);
+
+void
 set_repoquery_command(CLI::App* subcom, mamba::Configuration& config);
 
 void
@@ -67,8 +82,6 @@ set_ps_command(CLI::App* subcom, mamba::Context& context);
 void
 get_completions(CLI::App* app, mamba::Configuration& config, int argc, char** argv);
 
-void
-set_search_command(CLI::App* subcom, mamba::Configuration& config);
 
 void
 set_auth_command(CLI::App* subcom);

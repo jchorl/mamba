@@ -10,11 +10,17 @@
 #include <string>
 #include <vector>
 
-#include "prefix_data.hpp"
-
-
 namespace mamba
 {
+    class Context;
+    class ChannelContext;
+    class PrefixData;
+
+    namespace fs
+    {
+        class u8path;
+    }
+
     std::string python_pin(PrefixData& prefix_data, const std::vector<std::string>& specs);
 
     std::vector<std::string> file_pins(const fs::u8path& file);

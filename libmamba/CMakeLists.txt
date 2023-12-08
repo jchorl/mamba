@@ -153,40 +153,50 @@ set(
     # Filesystem library
     ${LIBMAMBA_SOURCE_DIR}/fs/filesystem.cpp
     # C++ utility library
-    ${LIBMAMBA_SOURCE_DIR}/util/string.cpp
-    ${LIBMAMBA_SOURCE_DIR}/util/os_win.cpp
+    ${LIBMAMBA_SOURCE_DIR}/util/cryptography.cpp
+    ${LIBMAMBA_SOURCE_DIR}/util/encoding.cpp
     ${LIBMAMBA_SOURCE_DIR}/util/environment.cpp
+    ${LIBMAMBA_SOURCE_DIR}/util/os_win.cpp
     ${LIBMAMBA_SOURCE_DIR}/util/path_manip.cpp
-    ${LIBMAMBA_SOURCE_DIR}/util/url_manip.cpp
+    ${LIBMAMBA_SOURCE_DIR}/util/string.cpp
     ${LIBMAMBA_SOURCE_DIR}/util/url.cpp
+    ${LIBMAMBA_SOURCE_DIR}/util/url_manip.cpp
     # C++ wrapping of libsolv
-    ${LIBMAMBA_SOURCE_DIR}/solv-cpp/queue.cpp
     ${LIBMAMBA_SOURCE_DIR}/solv-cpp/pool.cpp
+    ${LIBMAMBA_SOURCE_DIR}/solv-cpp/queue.cpp
     ${LIBMAMBA_SOURCE_DIR}/solv-cpp/repo.cpp
     ${LIBMAMBA_SOURCE_DIR}/solv-cpp/solvable.cpp
     ${LIBMAMBA_SOURCE_DIR}/solv-cpp/solver.cpp
     ${LIBMAMBA_SOURCE_DIR}/solv-cpp/transaction.cpp
+    # Implementation of version and matching specs
+    ${LIBMAMBA_SOURCE_DIR}/specs/archive.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/authentication_info.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/channel.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/channel_spec.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/conda_url.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/platform.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/repo_data.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/version.cpp
+    ${LIBMAMBA_SOURCE_DIR}/specs/version_spec.cpp
+    # Artifacts validation
+    ${LIBMAMBA_SOURCE_DIR}/validation/tools.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/errors.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/keys.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/update_framework.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/update_framework_v0_6.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/update_framework_v1.cpp
+    ${LIBMAMBA_SOURCE_DIR}/validation/repo_checker.cpp
     # C++ wrapping of libcurl
     ${LIBMAMBA_SOURCE_DIR}/core/curl.cpp
     # C++ wrapping of compression libs (zstd and bzlib)
     ${LIBMAMBA_SOURCE_DIR}/core/compression.cpp
-    # Implementation of version and matching specs
-    ${LIBMAMBA_SOURCE_DIR}/specs/archive.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/authentication_info.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/platform.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/conda_url.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/version.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/version_spec.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/channel_spec.cpp
-    ${LIBMAMBA_SOURCE_DIR}/specs/repo_data.cpp
     # Core API (low-level)
     ${LIBMAMBA_SOURCE_DIR}/core/singletons.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/activation.cpp
-    ${LIBMAMBA_SOURCE_DIR}/core/channel.cpp
+    ${LIBMAMBA_SOURCE_DIR}/core/channel_context.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/context.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/download.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/download_progress_bar.cpp
-    ${LIBMAMBA_SOURCE_DIR}/core/environment.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/environments_manager.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/error_handling.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/transaction_context.cpp
@@ -218,7 +228,6 @@ set(
     ${LIBMAMBA_SOURCE_DIR}/core/util.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/fsutil.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/util_os.cpp
-    ${LIBMAMBA_SOURCE_DIR}/core/validate.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/virtual_packages.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/env_lockfile.cpp
     ${LIBMAMBA_SOURCE_DIR}/core/execution.cpp
@@ -249,43 +258,53 @@ set(
     # Filesystem library
     ${LIBMAMBA_INCLUDE_DIR}/mamba/fs/filesystem.hpp
     # Utility library
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/json.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/deprecation.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/build.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/cast.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/compare.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/functional.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/type_traits.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/flat_set.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/cryptography.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/deprecation.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/encoding.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/environment.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/flat_binary_tree.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/flat_bool_expr_tree.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/flat_set.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/functional.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/graph.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/iterator.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/string.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/json.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/os_win.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/environment.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/path_manip.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/string.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/tuple_hash.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/url_manip.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/type_traits.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/url.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/util/url_manip.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/util/weakening_map.hpp
     # Implementation of version and matching specs
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/authentication_info.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/archive.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/platform.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/authentication_info.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/channel.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/channel_spec.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/conda_url.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/platform.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/repo_data.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/version.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/version_spec.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/channel_spec.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/specs/repo_data.hpp
+    # Artifacts validation
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/tools.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/errors.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/keys.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/update_framework.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/update_framework_v0_6.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/update_framework_v1.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/validation/repo_checker.hpp
     # Core API (low-level)
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/activation.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/core/channel.hpp
+    ${LIBMAMBA_INCLUDE_DIR}/mamba/core/channel_context.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/palette.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/context.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/download.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/download_progress_bar.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/core/environment.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/environments_manager.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/error_handling.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/satisfiability_error.hpp
@@ -319,7 +338,6 @@ set(
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/util_os.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/util_random.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/util_scope.hpp
-    ${LIBMAMBA_INCLUDE_DIR}/mamba/core/validate.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/virtual_packages.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/env_lockfile.hpp
     ${LIBMAMBA_INCLUDE_DIR}/mamba/core/tasksync.hpp
@@ -541,12 +559,6 @@ macro(libmamba_create_target target_name linkage output_name)
             PUBLIC
                 ${LIBSOLV_LIBRARIES}
                 ${LIBSOLVEXT_LIBRARIES}
-                ${LibArchive_LIBRARIES}
-                zstd::libzstd_shared
-                ${CURL_LIBRARIES}
-                ${OPENSSL_LIBRARIES}
-                zstd::libzstd_shared
-                BZip2::BZip2
                 yaml-cpp::yaml-cpp
                 fmt::fmt
                 # Since conda-forge spdlog is built with a bundled version of fmt we use the header
@@ -555,7 +567,15 @@ macro(libmamba_create_target target_name linkage output_name)
                 spdlog::spdlog_header_only
                 solv::libsolv
                 solv::libsolvext
-            PRIVATE reproc reproc++ simdjson::simdjson
+            PRIVATE
+                ${LibArchive_LIBRARIES}
+                ${CURL_LIBRARIES}
+                ${OPENSSL_LIBRARIES}
+                BZip2::BZip2
+                reproc
+                reproc++
+                simdjson::simdjson
+                zstd::libzstd_shared
         )
     endif()
 
@@ -697,7 +717,7 @@ configure_package_config_file(
 
 write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-    VERSION ${MAMBA_VERSION_MAJOR}.${MAMBA_VERSION_MINOR}.${MAMBA_VERSION_PATCH}
+    VERSION ${LIBMAMBA_VERSION_MAJOR}.${LIBMAMBA_VERSION_MINOR}.${LIBMAMBA_VERSION_PATCH}
     COMPATIBILITY AnyNewerVersion
 )
 install(

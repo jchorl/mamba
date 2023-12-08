@@ -10,10 +10,10 @@
 
 #include "mamba/core/output.hpp"
 #include "mamba/core/util.hpp"
+#include "mamba/util/encoding.hpp"
 #include "mamba/util/environment.hpp"
 #include "mamba/util/string.hpp"
 #include "mamba/util/url.hpp"
-
 
 std::string
 read_stdin()
@@ -187,7 +187,7 @@ set_login_command(CLI::App* subcom)
                 {
                     auth_object["type"] = "BasicHTTPAuthentication";
 
-                    auto pass_encoded = mamba::encode_base64(mamba::util::strip(pass));
+                    auto pass_encoded = mamba::util::encode_base64(mamba::util::strip(pass));
                     if (!pass_encoded)
                     {
                         throw pass_encoded.error();
