@@ -99,7 +99,6 @@ namespace mamba
     //    result == must_persist && must_persist_temporary_directories() == must_persist
     bool set_persist_temporary_directories(bool will_persist);
 
-
     class TemporaryDirectory
     {
     public:
@@ -327,12 +326,7 @@ namespace mamba
         tl::expected<std::shared_ptr<LockFileOwner>, mamba_error> impl;
     };
 
-
     void split_package_extension(const std::string& file, std::string& name, std::string& extension);
-    fs::u8path strip_package_extension(const std::string& file);
-
-    tl::expected<std::string, mamba_error> encode_base64(std::string_view input);
-    tl::expected<std::string, mamba_error> decode_base64(std::string_view input);
 
     std::string
     quote_for_shell(const std::vector<std::string>& arguments, const std::string& shell = "");

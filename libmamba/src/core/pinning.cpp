@@ -8,8 +8,8 @@
 
 #include "mamba/core/output.hpp"
 #include "mamba/core/pinning.hpp"
+#include "mamba/core/prefix_data.hpp"
 #include "mamba/util/string.hpp"
-
 
 namespace mamba
 {
@@ -30,8 +30,7 @@ namespace mamba
 
         for (const auto& spec : specs)
         {
-            MatchSpec ms{ spec, prefix_data.channel_context() };
-            if (ms.name == "python")
+            if (MatchSpec::parse(spec).name == "python")
             {
                 return "";
             }

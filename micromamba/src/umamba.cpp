@@ -5,7 +5,7 @@
 // The full license is in the file LICENSE, distributed with this software.
 
 #include "mamba/api/configuration.hpp"
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/context.hpp"
 #include "mamba/version.hpp"
 
@@ -107,7 +107,7 @@ set_umamba_command(CLI::App* com, mamba::Configuration& config)
         "Find packages in active environment or channels\n"
         "This is equivalent to `repoquery search` command"
     );
-    set_search_command(search_subcom, config);
+    set_repoquery_search_command(search_subcom, config);
 
 #if !defined(_WIN32) && defined(MICROMAMBA_SERVER)
     CLI::App* server_subcom = com->add_subcommand("server", "Run micromamba server");

@@ -11,6 +11,9 @@
 #include <string>
 #include <string_view>
 
+#include <fmt/core.h>
+#include <fmt/format.h>
+
 #include "mamba/util/flat_set.hpp"
 
 namespace mamba::specs
@@ -92,11 +95,13 @@ namespace mamba::specs
 
         [[nodiscard]] auto location() const& -> const std::string&;
         [[nodiscard]] auto location() && -> std::string;
-        [[nodiscard]] auto clear_location() -> std::string;
+        auto clear_location() -> std::string;
 
         [[nodiscard]] auto platform_filters() const& -> const dynamic_platform_set&;
         [[nodiscard]] auto platform_filters() && -> dynamic_platform_set;
-        [[nodiscard]] auto clear_platform_filters() -> dynamic_platform_set;
+        auto clear_platform_filters() -> dynamic_platform_set;
+
+        [[nodiscard]] auto str() const -> std::string;
 
     private:
 
@@ -105,4 +110,23 @@ namespace mamba::specs
         Type m_type = Type::Unknown;
     };
 }
+
+template <>
+struct fmt::formatter<mamba::specs::ChannelSpec>
+{
+    using ChannelSpec = ::mamba::specs::ChannelSpec;
+
+    constexpr auto parse(format_parse_context& ctx) -> format_parse_context::iterator
+    {
+        // make sure that range is empty
+        if (ctx.begin() != ctx.end() && *ctx.begin() != '}')
+        {
+            throw fmt::format_error("Invalid format");
+        }
+        return ctx.begin();
+    }
+
+    auto format(const ChannelSpec& spec, format_context& ctx) const -> format_context::iterator;
+};
+
 #endif

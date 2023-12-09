@@ -7,37 +7,33 @@
 #ifndef MAMBA_CORE_MATCH_SPEC
 #define MAMBA_CORE_MATCH_SPEC
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <unordered_map>
 
+#include "mamba/specs/channel_spec.hpp"
+
 namespace mamba
 {
-    class ChannelContext;
-
     class MatchSpec
     {
     public:
 
-        MatchSpec() = default;
+        [[nodiscard]] static auto parse_version_and_build(std::string_view s)
+            -> std::tuple<std::string, std::string>;
+        [[nodiscard]] static auto parse(std::string_view spec) -> MatchSpec;
 
-        MatchSpec(std::string_view i_spec, ChannelContext& channel_context);
+        [[nodiscard]] auto conda_build_form() const -> std::string;
+        [[nodiscard]] auto str() const -> std::string;
 
-        void parse(ChannelContext& channel_context);
-        std::string conda_build_form() const;
-        std::string str() const;
+        [[nodiscard]] auto is_simple() const -> bool;
 
-        bool is_simple() const;
-
-        static std::tuple<std::string, std::string> parse_version_and_build(const std::string& s);
-        std::string spec;
-
+        std::optional<specs::ChannelSpec> channel;
         std::string name;
         std::string version;
-        std::string channel;
         std::string ns;
-        std::string subdir;
         std::string build_string;
         std::string fn;
         std::string url;
@@ -48,6 +44,5 @@ namespace mamba
         std::unordered_map<std::string, std::string> brackets;
         std::unordered_map<std::string, std::string> parens;
     };
-}  // namespace mamba
-
+}
 #endif

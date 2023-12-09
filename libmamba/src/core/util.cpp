@@ -49,11 +49,9 @@ extern "C"
 #endif
 
 #include <nlohmann/json.hpp>
-#include <openssl/evp.h>
 #include <tl/expected.hpp>
 
 #include "mamba/core/context.hpp"
-#include "mamba/core/environment.hpp"
 #include "mamba/core/error_handling.hpp"
 #include "mamba/core/execution.hpp"
 #include "mamba/core/invoke.hpp"
@@ -82,6 +80,7 @@ namespace mamba
     {
         return persist_temporary_files;
     }
+
     bool set_persist_temporary_files(bool new_value)
     {
         return persist_temporary_files.exchange(new_value);
@@ -91,6 +90,7 @@ namespace mamba
     {
         return persist_temporary_directories;
     }
+
     bool set_persist_temporary_directories(bool new_value)
     {
         return persist_temporary_directories.exchange(new_value);
@@ -330,19 +330,6 @@ namespace mamba
             name = file;
             extension = "";
         }
-    }
-
-    fs::u8path strip_package_extension(const std::string& file)
-    {
-        std::string name, extension;
-        split_package_extension(file, name, extension);
-
-        if (extension == "")
-        {
-            throw std::runtime_error("Cannot strip file extension from: " + file);
-        }
-
-        return name;
     }
 
     std::string quote_for_shell(const std::vector<std::string>& arguments, const std::string& shell)
@@ -668,7 +655,6 @@ namespace mamba
     {
         return prepend(p.c_str(), start, newline);
     }
-
 
     class LockFileOwner
     {
@@ -1000,6 +986,7 @@ namespace mamba
             {
                 return m_is_file_locking_allowed;
             }
+
             bool allow_file_locking(bool allow)
             {
                 return m_is_file_locking_allowed.exchange(allow);
@@ -1009,6 +996,7 @@ namespace mamba
             {
                 return m_default_lock_timeout;
             }
+
             std::chrono::seconds set_file_locking_timeout(const std::chrono::seconds& new_timeout)
             {
                 return m_default_lock_timeout.exchange(new_timeout);
@@ -1124,6 +1112,7 @@ namespace mamba
     {
         return files_locked_by_this_process.default_file_locking_timeout();
     }
+
     std::chrono::seconds set_file_locking_timeout(const std::chrono::seconds& new_timeout)
     {
         return files_locked_by_this_process.set_file_locking_timeout(new_timeout);
@@ -1345,7 +1334,6 @@ namespace mamba
         return infile;
     }
 
-
     WrappedCallOptions WrappedCallOptions::from_context(const Context& context)
     {
         return {
@@ -1541,10 +1529,10 @@ namespace mamba
         else
         {
             // shell_path = 'sh' if 'bsd' in sys.platform else 'bash'
-            fs::u8path shell_path = env::which("bash");
+            fs::u8path shell_path = util::which("bash");
             if (shell_path.empty())
             {
-                shell_path = env::which("sh");
+                shell_path = util::which("sh");
             }
             if (shell_path.empty())
             {
@@ -1569,43 +1557,6 @@ namespace mamba
     {
         return util::ends_with(filename, ".yml") || util::ends_with(filename, ".yaml");
     }
-
-    tl::expected<std::string, mamba_error> encode_base64(std::string_view input)
-    {
-        const auto pl = 4 * ((input.size() + 2) / 3);
-        std::vector<unsigned char> output(pl + 1);
-        const auto ol = EVP_EncodeBlock(
-            output.data(),
-            reinterpret_cast<const unsigned char*>(input.data()),
-            static_cast<int>(input.size())
-        );
-
-        if (util::cmp_not_equal(pl, ol))
-        {
-            return make_unexpected("Could not encode base64 string", mamba_error_code::openssl_failed);
-        }
-
-        return std::string(reinterpret_cast<const char*>(output.data()));
-    }
-
-    tl::expected<std::string, mamba_error> decode_base64(std::string_view input)
-    {
-        const auto pl = 3 * input.size() / 4;
-
-        std::vector<unsigned char> output(pl + 1);
-        const auto ol = EVP_DecodeBlock(
-            output.data(),
-            reinterpret_cast<const unsigned char*>(input.data()),
-            static_cast<int>(input.size())
-        );
-        if (util::cmp_not_equal(pl, ol))
-        {
-            return make_unexpected("Could not decode base64 string", mamba_error_code::openssl_failed);
-        }
-
-        return std::string(reinterpret_cast<const char*>(output.data()));
-    }
-
 
     std::optional<std::string>
     proxy_match(const std::string& url, const std::map<std::string, std::string>& proxy_servers)

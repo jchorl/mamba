@@ -1,8 +1,9 @@
 #include "mamba/core/invoke.hpp"
 #include "mamba/core/package_fetcher.hpp"
 #include "mamba/core/util.hpp"
-#include "mamba/core/validate.hpp"
+#include "mamba/specs/archive.hpp"
 #include "mamba/util/string.hpp"
+#include "mamba/validation/tools.hpp"
 
 namespace mamba
 {
@@ -68,23 +69,18 @@ namespace mamba
      * PatckageFetcher *
      *******************/
 
-    PackageFetcher::PackageFetcher(
-        const PackageInfo& pkg_info,
-        ChannelContext& channel_context,
-        MultiPackageCache& caches
-    )
+    struct PackageFetcher::CheckSumParams
+    {
+        std::string_view expected;
+        std::string_view actual;
+        std::string_view name;
+        ValidationResult error;
+    };
+
+    PackageFetcher::PackageFetcher(const PackageInfo& pkg_info, MultiPackageCache& caches)
+
         : m_package_info(pkg_info)
     {
-        // FIXME: only do this for micromamba for now
-        if (channel_context.context().command_params.is_micromamba)
-        {
-            m_url = channel_context.make_channel(pkg_info.url).urls(true)[0];
-        }
-        else
-        {
-            m_url = pkg_info.url;
-        }
-
         const fs::u8path extracted_cache = caches.get_extracted_dir_path(m_package_info);
         if (extracted_cache.empty())
         {
@@ -185,16 +181,21 @@ namespace mamba
 
         if (!sha256().empty())
         {
-            res = validate_checksum({ sha256(),
-                                      validation::sha256sum(m_tarball_path),
-                                      "SHA256",
-                                      ValidationResult::SHA256_ERROR });
+            res = validate_checksum({
+                /* .expected= */ sha256(),
+                /* .actual= */ validation::sha256sum(m_tarball_path),
+                /* .name= */ "SHA256",
+                /* .error= */ ValidationResult::SHA256_ERROR,
+            });
         }
         else if (!md5().empty())
         {
-            res = validate_checksum(
-                { md5(), validation::md5sum(m_tarball_path), "MD5", ValidationResult::MD5SUM_ERROR }
-            );
+            res = validate_checksum({
+                /* .expected= */ md5(),
+                /* .actual= */ validation::md5sum(m_tarball_path),
+                /* .name= */ "MD5",
+                /* .error= */ ValidationResult::MD5SUM_ERROR,
+            });
         }
 
         auto event = res == ValidationResult::VALID ? PackageExtractEvent::validate_success
@@ -297,7 +298,7 @@ namespace mamba
     void PackageFetcher::clear_cache() const
     {
         fs::remove_all(m_tarball_path);
-        const fs::u8path dest_dir = strip_package_extension(m_tarball_path.string());
+        const fs::u8path dest_dir = specs::strip_archive_extension(m_tarball_path.string());
         fs::remove_all(dest_dir);
     }
 
@@ -312,7 +313,7 @@ namespace mamba
 
     const std::string& PackageFetcher::url() const
     {
-        return m_url;
+        return m_package_info.url;
     }
 
     const std::string& PackageFetcher::sha256() const
@@ -344,7 +345,7 @@ namespace mamba
         return res;
     }
 
-    auto PackageFetcher::validate_checksum(CheckSumParams params) const -> ValidationResult
+    auto PackageFetcher::validate_checksum(const CheckSumParams& params) const -> ValidationResult
     {
         auto res = ValidationResult::VALID;
         if (params.actual != params.expected)
@@ -353,7 +354,8 @@ namespace mamba
             LOG_ERROR << "File not valid: " << params.name << " doesn't match expectation "
                       << m_tarball_path << "\nExpected: " << params.expected
                       << "\nActual: " << params.actual << "\n";
-            Console::instance().print(filename() + " tarball has incorrect " + params.name);
+            Console::instance().print(util::concat(filename(), " tarball has incorrect ", params.name)
+            );
             // TODO: terminate monitor
         }
         return res;
@@ -391,7 +393,7 @@ namespace mamba
         std::lock_guard<std::mutex> lock(urls_txt_mutex);
         const auto urls_file_path = m_cache_path / "urls.txt";
         std::ofstream urls_txt(urls_file_path.std_path(), std::ios::app);
-        urls_txt << m_url << std::endl;
+        urls_txt << url() << std::endl;
     }
 
     void PackageFetcher::update_monitor(progress_callback_t* cb, PackageExtractEvent event) const
@@ -401,6 +403,7 @@ namespace mamba
             safe_invoke(*cb, event);
         }
     }
+
     /***************************
      * PackageFetcherSemaphore *
      ***************************/

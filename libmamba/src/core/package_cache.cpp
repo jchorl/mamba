@@ -4,16 +4,18 @@
 //
 // The full license is in the file LICENSE, distributed with this software.
 
+#include <fstream>
+
 #include <nlohmann/json.hpp>
 
 #include "mamba/core/context.hpp"
 #include "mamba/core/output.hpp"
 #include "mamba/core/package_cache.hpp"
 #include "mamba/core/package_handling.hpp"
-#include "mamba/core/validate.hpp"
+#include "mamba/specs/archive.hpp"
 #include "mamba/specs/conda_url.hpp"
 #include "mamba/util/string.hpp"
-#include "mamba/util/url_manip.hpp"
+#include "mamba/validation/tools.hpp"
 
 namespace mamba
 {
@@ -21,17 +23,13 @@ namespace mamba
     {
         bool compare_cleaned_url(std::string_view url_str1, std::string_view url_str2)
         {
+            using Credentials = specs::CondaURL::Credentials;
             auto url1 = specs::CondaURL::parse(url_str1);
             url1.set_scheme("https");
-            url1.clear_token();
-            url1.clear_password();
-            url1.clear_user();
             auto url2 = specs::CondaURL::parse(url_str2);
             url2.set_scheme("https");
-            url2.clear_token();
-            url2.clear_password();
-            url2.clear_user();
-            return util::rstrip(url1.str(), '/') == util::rstrip(url2.str(), '/');
+            return util::rstrip(url1.str(Credentials::Remove), '/')
+                   == util::rstrip(url2.str(Credentials::Remove), '/');
         }
     }
 
@@ -138,9 +136,9 @@ namespace mamba
         }
 
         assert(!s.fn.empty());
-        auto pkg_name = strip_package_extension(s.fn);
-        LOG_DEBUG << "Verify cache '" << m_path.string() << "' for package tarball '"
-                  << pkg_name.string() << "'";
+        const auto pkg_name = specs::strip_archive_extension(s.fn);
+        LOG_DEBUG << "Verify cache '" << m_path.string() << "' for package tarball '" << pkg_name
+                  << "'";
 
         bool valid = false;
         if (fs::exists(m_path / s.fn))
@@ -151,11 +149,11 @@ namespace mamba
             valid = s.size == 0 || validation::file_size(tarball_path, s.size);
             if (!s.md5.empty())
             {
-                valid = valid && validation::md5(tarball_path, s.md5);
+                valid = valid && (validation::md5sum(tarball_path) == s.md5);
             }
             else if (!s.sha256.empty())
             {
-                valid = valid && validation::sha256(tarball_path, s.md5);
+                valid = valid && (validation::sha256sum(tarball_path) == s.sha256);
             }
             else
             {
@@ -188,8 +186,7 @@ namespace mamba
             m_valid_tarballs[pkg] = valid;
         }
 
-        LOG_DEBUG << "'" << pkg_name.string() << "' tarball cache is "
-                  << (valid ? "valid" : "invalid");
+        LOG_DEBUG << "'" << pkg_name << "' tarball cache is " << (valid ? "valid" : "invalid");
         return valid;
     }
 
@@ -204,10 +201,10 @@ namespace mamba
             return m_valid_extracted_dir[pkg];
         }
 
-        auto pkg_name = strip_package_extension(s.fn);
+        auto pkg_name = specs::strip_archive_extension(s.fn);
         fs::u8path extracted_dir = m_path / pkg_name;
         LOG_DEBUG << "Verify cache '" << m_path.string() << "' for package extracted directory '"
-                  << pkg_name.string() << "'";
+                  << pkg_name << "'";
 
         if (fs::exists(extracted_dir))
         {
@@ -350,7 +347,7 @@ namespace mamba
         }
 
         m_valid_extracted_dir[pkg] = valid;
-        LOG_DEBUG << "'" << pkg_name.string() << "' extracted directory cache is "
+        LOG_DEBUG << "'" << pkg_name << "' extracted directory cache is "
                   << (valid ? "valid" : "invalid");
 
         return valid;
@@ -447,7 +444,6 @@ namespace mamba
             throw std::runtime_error("Package cache error.");
         }
     }
-
 
     fs::u8path MultiPackageCache::get_extracted_dir_path(const PackageInfo& s, bool return_empty)
     {

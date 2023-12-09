@@ -6,7 +6,6 @@
 
 #include "mamba/core/activation.hpp"
 #include "mamba/core/context.hpp"
-#include "mamba/core/environment.hpp"
 #include "mamba/core/output.hpp"
 #include "mamba/core/shell_init.hpp"
 #include "mamba/core/util.hpp"
@@ -354,6 +353,7 @@ namespace mamba
             }
         }
     }
+
     EnvironmentTransform Activator::build_reactivate()
     {
         std::string conda_prefix;
@@ -911,7 +911,6 @@ namespace mamba
         return { "prompt", conda_prompt_modifier + prompt };
     }
 
-
     std::string CshActivator::shell_extension()
     {
         return ".csh";
@@ -936,7 +935,6 @@ namespace mamba
     {
         return m_context.prefix_params.root_prefix / "etc" / "profile.d" / "micromamba.csh";
     }
-
 
     std::string CmdExeActivator::shell_extension()
     {

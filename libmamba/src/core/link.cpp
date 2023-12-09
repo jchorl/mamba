@@ -13,17 +13,19 @@
 #include <reproc++/reproc.hpp>
 #include <reproc++/run.hpp>
 
-#include "mamba/core/environment.hpp"
 #include "mamba/core/link.hpp"
 #include "mamba/core/match_spec.hpp"
 #include "mamba/core/menuinst.hpp"
 #include "mamba/core/output.hpp"
 #include "mamba/core/transaction_context.hpp"
-#include "mamba/core/util_os.hpp"
-#include "mamba/core/validate.hpp"
 #include "mamba/util/build.hpp"
 #include "mamba/util/environment.hpp"
 #include "mamba/util/string.hpp"
+#include "mamba/validation/tools.hpp"
+
+#ifdef __APPLE__
+#include "mamba/core/util_os.hpp"
+#endif
 
 #if _WIN32
 #include "../data/conda_exe.hpp"
@@ -384,10 +386,10 @@ namespace mamba
         else
         {
             // shell_path = 'sh' if 'bsd' in sys.platform else 'bash'
-            fs::u8path shell_path = env::which("bash");
+            fs::u8path shell_path = util::which("bash");
             if (shell_path.empty())
             {
-                shell_path = env::which("sh");
+                shell_path = util::which("sh");
             }
 
             if (activate)
@@ -606,7 +608,7 @@ namespace mamba
             // Sometimes we might want to raise here ...
             m_clobber_warnings.push_back(rel_dst.string());
 #ifdef _WIN32
-            return std::make_tuple(validation::sha256sum(dst), rel_dst.string());
+            return std::make_tuple(std::string(validation::sha256sum(dst)), rel_dst.string());
 #endif
             fs::remove(dst);
         }
@@ -698,7 +700,7 @@ namespace mamba
                         fo << launcher << shebang << (buffer.c_str() + arc_pos);
                         fo.close();
                     }
-                    return std::make_tuple(validation::sha256sum(dst), rel_dst.string());
+                    return std::make_tuple(std::string(validation::sha256sum(dst)), rel_dst.string());
                 }
 #else
                 std::size_t padding_size = (path_data.prefix_placeholder.size() > new_prefix.size())
@@ -747,7 +749,7 @@ namespace mamba
                 codesign(dst, m_context->context().output_params.verbosity > 1);
             }
 #endif
-            return std::make_tuple(validation::sha256sum(dst), rel_dst.string());
+            return std::make_tuple(std::string(validation::sha256sum(dst)), rel_dst.string());
         }
 
         if ((path_data.path_type == PathType::HARDLINK) || path_data.no_link)
@@ -809,7 +811,7 @@ namespace mamba
             );
         }
         return std::make_tuple(
-            path_data.sha256.empty() ? validation::sha256sum(dst) : path_data.sha256,
+            path_data.sha256.empty() ? std::string(validation::sha256sum(dst)) : path_data.sha256,
             rel_dst.string()
         );
     }

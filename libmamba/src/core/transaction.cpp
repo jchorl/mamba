@@ -21,7 +21,7 @@ extern "C"  // Incomplete header
 #include <solv/conda.h>
 }
 
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/context.hpp"
 #include "mamba/core/download_progress_bar.hpp"
 #include "mamba/core/env_lockfile.hpp"
@@ -31,6 +31,7 @@ extern "C"  // Incomplete header
 #include "mamba/core/output.hpp"
 #include "mamba/core/package_fetcher.hpp"
 #include "mamba/core/pool.hpp"
+#include "mamba/core/solver.hpp"
 #include "mamba/core/thread_utils.hpp"
 #include "mamba/core/transaction.hpp"
 #include "mamba/util/flat_set.hpp"
@@ -73,9 +74,17 @@ namespace mamba
                 p.url = ms.url;
                 p.build_string = ms.build_string;
                 p.version = ms.version;
-                p.channel = ms.channel;
+                if (ms.channel.has_value())
+                {
+                    p.channel = ms.channel->location();
+                    if (!ms.channel->platform_filters().empty())
+                    {
+                        // There must be only one since we are expecting URLs
+                        assert(ms.channel->platform_filters().size() == 1);
+                        p.subdir = ms.channel->platform_filters().front();
+                    }
+                }
                 p.fn = ms.fn;
-                p.subdir = ms.subdir;
                 if (ms.brackets.find("md5") != ms.brackets.end())
                 {
                     p.md5 = ms.brackets.at("md5");
@@ -573,9 +582,8 @@ namespace mamba
         std::vector<MatchSpec> specs_to_install;
         for (const auto& pkginfo : packages)
         {
-            specs_to_install.push_back(MatchSpec(
-                fmt::format("{}=={}={}", pkginfo.name, pkginfo.version, pkginfo.build_string),
-                m_pool.channel_context()
+            specs_to_install.push_back(MatchSpec::parse(
+                fmt::format("{}=={}={}", pkginfo.name, pkginfo.version, pkginfo.build_string)
             ));
         }
 
@@ -872,6 +880,7 @@ namespace mamba
     namespace
     {
         using FetcherList = std::vector<PackageFetcher>;
+
         // Free functions instead of private method to avoid exposing downloaders
         // and package fetchers in the header. Ideally we may want a pimpl or
         // a private implementation header when we refactor this class.
@@ -880,7 +889,7 @@ namespace mamba
         {
             FetcherList fetchers;
             auto& channel_context = pool.channel_context();
-            auto& ctx = channel_context.context();
+            auto& ctx = pool.context();
 
             if (ctx.experimental && ctx.validation_params.verify_artifacts)
             {
@@ -930,7 +939,21 @@ namespace mamba
                     //
                     //     LOG_DEBUG << "'" << pkg.name << "' trusted from '" << pkg.channel << "'";
                     // }
-                    fetchers.emplace_back(pkg, channel_context, multi_cache);
+
+                    // FIXME: only do this for micromamba for now
+                    if (ctx.command_params.is_micromamba)
+                    {
+                        using Credentials = typename specs::CondaURL::Credentials;
+                        auto l_pkg = pkg;
+                        auto channels = channel_context.make_channel(pkg.url);
+                        assert(channels.size() == 1);  // A URL can only resolve to one channel
+                        l_pkg.url = channels.front().platform_urls().at(0).str(Credentials::Show);
+                        fetchers.emplace_back(l_pkg, multi_cache);
+                    }
+                    else
+                    {
+                        fetchers.emplace_back(pkg, multi_cache);
+                    }
                 }
             );
 
@@ -1051,7 +1074,7 @@ namespace mamba
 
     bool MTransaction::fetch_extract_packages()
     {
-        auto& ctx = m_pool.channel_context().context();
+        auto& ctx = m_pool.context();
         PackageFetcherSemaphore::set_max(ctx.threads_params.extract_threads);
 
         FetcherList fetchers = build_fetchers(m_pool, m_solution, m_multi_cache);
@@ -1274,8 +1297,17 @@ namespace mamba
                 }
                 else
                 {
-                    const Channel& chan = m_pool.channel_context().make_channel(str);
-                    chan_name = chan.display_name();
+                    auto channels = m_pool.channel_context().make_channel(str);
+                    if (channels.size() == 1)
+                    {
+                        chan_name = channels.front().display_name();
+                    }
+                    else
+                    {
+                        // If there is more than on, it's a custom_multi_channel name
+                        // This should never happen
+                        chan_name = str;
+                    }
                 }
             }
             else
@@ -1392,7 +1424,7 @@ namespace mamba
             }
 
             const auto hash_idx = url.find_first_of('#');
-            specs_to_install.emplace_back(url.substr(0, hash_idx), pool.channel_context());
+            specs_to_install.emplace_back(MatchSpec::parse(url.substr(0, hash_idx)));
             MatchSpec& ms = specs_to_install.back();
 
             if (hash_idx != std::string::npos)
@@ -1419,7 +1451,7 @@ namespace mamba
         std::vector<detail::other_pkg_mgr_spec>& other_specs
     )
     {
-        const auto maybe_lockfile = read_environment_lockfile(pool.channel_context(), env_lockfile_path);
+        const auto maybe_lockfile = read_environment_lockfile(env_lockfile_path);
         if (!maybe_lockfile)
         {
             throw maybe_lockfile.error();  // NOTE: we cannot return an `un/expected` because

@@ -6,7 +6,7 @@
 
 #include "mamba/api/configuration.hpp"
 #include "mamba/api/info.hpp"
-#include "mamba/core/channel.hpp"
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/context.hpp"
 #include "mamba/core/virtual_packages.hpp"
 #include "mamba/util/environment.hpp"
@@ -31,8 +31,8 @@ namespace mamba
             );
         config.load();
 
-        ChannelContext channel_context{ config.context() };
-        detail::print_info(channel_context, config);
+        auto channel_context = ChannelContext::make_conda_compatible(config.context());
+        detail::print_info(config.context(), channel_context, config);
 
         config.operation_teardown();
     }
@@ -88,10 +88,9 @@ namespace mamba
             Console::instance().json_write(items_map);
         }
 
-        void print_info(ChannelContext& channel_context, const Configuration& config)
+        void print_info(Context& ctx, ChannelContext& channel_context, const Configuration& config)
         {
-            assert(&channel_context.context() == &config.context());
-            const auto& ctx = config.context();
+            assert(&ctx == &config.context());
             std::vector<std::tuple<std::string, nlohmann::json>> items;
 
             items.push_back({ "libmamba version", version() });
@@ -160,16 +159,18 @@ namespace mamba
             }
             items.push_back({ "virtual packages", virtual_pkgs });
 
-            std::vector<std::string> channels = ctx.channels;
             // Always append context channels
-            auto& ctx_channels = ctx.channels;
-            std::copy(ctx_channels.begin(), ctx_channels.end(), std::back_inserter(channels));
             std::vector<std::string> channel_urls;
-            for (auto channel : channel_context.get_channels(channels))
+            using Credentials = specs::CondaURL::Credentials;
+            channel_urls.reserve(ctx.channels.size() * 2);  // Lower bound * (platform + noarch)
+            for (const auto& loc : ctx.channels)
             {
-                for (auto url : channel.urls(true))
+                for (auto channel : channel_context.make_channel(loc))
                 {
-                    channel_urls.push_back(url);
+                    for (auto url : channel.platform_urls())
+                    {
+                        channel_urls.push_back(std::move(url).str(Credentials::Remove));
+                    }
                 }
             }
             items.push_back({ "channels", channel_urls });

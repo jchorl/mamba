@@ -63,6 +63,8 @@ namespace mamba
     {
     public:
 
+        static void use_default_signal_handler(bool val);
+
         struct RemoteFetchParams
         {
             // ssl_verify can be either an empty string (regular SSL verification),
@@ -200,7 +202,7 @@ namespace mamba
         std::string platform = std::string(specs::build_platform_name());
         std::vector<std::string> platforms() const;
 
-        std::vector<std::string> channels;
+        std::vector<std::string> channels = { "conda-forge" };
         std::map<std::string, std::string> custom_channels;
         std::map<std::string, std::vector<std::string>> custom_multichannels;
 

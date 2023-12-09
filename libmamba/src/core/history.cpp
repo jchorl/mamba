@@ -6,6 +6,7 @@
 
 #include <regex>
 
+#include "mamba/core/channel_context.hpp"
 #include "mamba/core/context.hpp"
 #include "mamba/core/fsutil.hpp"
 #include "mamba/core/history.hpp"
@@ -200,7 +201,7 @@ namespace mamba
             v.reserve(sv.size());
             for (const auto& el : sv)
             {
-                v.emplace_back(el, m_channel_context);
+                v.emplace_back(MatchSpec::parse(el));
             }
             return v;
         };

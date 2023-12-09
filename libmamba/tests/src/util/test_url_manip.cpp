@@ -10,7 +10,6 @@
 #include <doctest/doctest.h>
 
 #include "mamba/fs/filesystem.hpp"
-#include "mamba/specs/platform.hpp"
 #include "mamba/util/build.hpp"
 #include "mamba/util/string.hpp"
 #include "mamba/util/url_manip.hpp"
@@ -20,111 +19,6 @@ using namespace mamba::util;
 
 TEST_SUITE("util::url_manip")
 {
-    TEST_CASE("encoding")
-    {
-        CHECK_EQ(url_encode(""), "");
-        CHECK_EQ(url_encode("page"), "page");
-        CHECK_EQ(url_encode(" /word%"), "%20%2Fword%25");
-        CHECK_EQ(url_encode("user@email.com"), "user%40email.com");
-        CHECK_EQ(
-            url_encode(R"(#!$&'"(ab23)*+,/:;=?@[])"),
-            "%23%21%24%26%27%22%28ab23%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"
-        );
-        // Does NOT parse URL
-        CHECK_EQ(url_encode("https://foo/"), "https%3A%2F%2Ffoo%2F");
-
-        // Exclude characters
-        CHECK_EQ(url_encode(" /word%", '/'), "%20/word%25");
-
-        CHECK_EQ(url_decode(""), "");
-        CHECK_EQ(url_decode("page"), "page");
-        CHECK_EQ(url_decode("%20%2Fword%25"), " /word%");
-        CHECK_EQ(url_decode(" /word%25"), " /word%");
-        CHECK_EQ(url_decode("user%40email.com"), "user@email.com");
-        CHECK_EQ(url_decode("https%3A%2F%2Ffoo%2F"), "https://foo/");
-        CHECK_EQ(
-            url_decode("%23%21%24%26%27%22%28ab23%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"),
-            R"(#!$&'"(ab23)*+,/:;=?@[])"
-        );
-    }
-
-    TEST_CASE("split_platform")
-    {
-        std::string platform_found, cleaned_url;
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://mamba.com/linux-64/package.tar.bz2",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-
-        CHECK_EQ(platform_found, "linux-64");
-        CHECK_EQ(cleaned_url, "https://mamba.com/package.tar.bz2");
-
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://mamba.com/linux-64/noarch-package.tar.bz2",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-        CHECK_EQ(platform_found, "linux-64");
-        CHECK_EQ(cleaned_url, "https://mamba.com/noarch-package.tar.bz2");
-
-        split_platform(
-            { "linux-64", "osx-arm64", "noarch" },
-            "https://mamba.com/noarch/kernel_linux-64-package.tar.bz2",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-        CHECK_EQ(platform_found, "noarch");
-        CHECK_EQ(cleaned_url, "https://mamba.com/kernel_linux-64-package.tar.bz2");
-
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://mamba.com/linux-64",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-
-        CHECK_EQ(platform_found, "linux-64");
-        CHECK_EQ(cleaned_url, "https://mamba.com");
-
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://mamba.com/noarch",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-
-        CHECK_EQ(platform_found, "noarch");
-        CHECK_EQ(cleaned_url, "https://mamba.com");
-
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://conda.anaconda.org/conda-forge/noarch",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-        CHECK_EQ(platform_found, "noarch");
-        CHECK_EQ(cleaned_url, "https://conda.anaconda.org/conda-forge");
-
-        split_platform(
-            { "noarch", "linux-64" },
-            "https://conda.anaconda.org/pkgs/main/noarch",
-            std::string(mamba::specs::build_platform_name()),
-            cleaned_url,
-            platform_found
-        );
-        CHECK_EQ(platform_found, "noarch");
-        CHECK_EQ(cleaned_url, "https://conda.anaconda.org/pkgs/main");
-    }
-
     TEST_CASE("abs_path_to_url")
     {
         SUBCASE("/users/test/miniconda3")
@@ -278,12 +172,5 @@ TEST_SUITE("util::url_manip")
         CHECK_FALSE(url_has_scheme("://"));
         CHECK_FALSE(url_has_scheme("f#gre://"));
         CHECK_FALSE(url_has_scheme(""));
-    }
-
-    TEST_CASE("cache_name_from_url")
-    {
-        CHECK_EQ(cache_name_from_url("http://test.com/1234/"), "302f0a61");
-        CHECK_EQ(cache_name_from_url("http://test.com/1234/repodata.json"), "302f0a61");
-        CHECK_EQ(cache_name_from_url("http://test.com/1234/current_repodata.json"), "78a8cce9");
     }
 }

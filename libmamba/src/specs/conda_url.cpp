@@ -13,8 +13,8 @@
 
 #include "mamba/specs/archive.hpp"
 #include "mamba/specs/conda_url.hpp"
+#include "mamba/util/encoding.hpp"
 #include "mamba/util/string.hpp"
-#include "mamba/util/url_manip.hpp"
 
 namespace mamba::specs
 {
@@ -113,7 +113,7 @@ namespace mamba::specs
     {
     }
 
-    auto CondaURL::base() const -> const util::URL&
+    auto CondaURL::generic() const -> const util::URL&
     {
         return static_cast<const util::URL&>(*this);
     }
@@ -236,7 +236,7 @@ namespace mamba::specs
 
     auto CondaURL::path_without_token(Decode::yes_type) const -> std::string
     {
-        return util::url_decode(path_without_token(Decode::no));
+        return util::decode_percent(path_without_token(Decode::no));
     }
 
     void CondaURL::set_path_without_token(std::string_view new_path, Encode::no_type)
@@ -246,7 +246,7 @@ namespace mamba::specs
             auto old_path = clear_path();
             old_path.erase(std::min(len, old_path.size()));
             Base::set_path(std::move(old_path), Encode::no);
-            Base::append_path(new_path.empty() ? "/" : new_path);
+            Base::append_path(new_path.empty() ? "/" : new_path, Encode::no);
         }
         else
         {
@@ -341,7 +341,7 @@ namespace mamba::specs
 
     auto CondaURL::package(Decode::yes_type) const -> std::string
     {
-        return util::url_decode(package(Decode::no));
+        return util::decode_percent(package(Decode::no));
     }
 
     auto CondaURL::package(Decode::no_type) const -> std::string_view
@@ -358,7 +358,7 @@ namespace mamba::specs
 
     void CondaURL::set_package(std::string_view pkg, Encode::yes_type)
     {
-        return set_package(util::url_encode(pkg), Encode::no);
+        return set_package(util::encode_percent(pkg), Encode::no);
     }
 
     void CondaURL::set_package(std::string_view pkg, Encode::no_type)
@@ -506,7 +506,7 @@ namespace mamba::specs
 
     auto operator==(const CondaURL& a, const CondaURL& b) -> bool
     {
-        return a.base() == b.base();
+        return a.generic() == b.generic();
     }
 
     auto operator!=(const CondaURL& a, const CondaURL& b) -> bool
@@ -529,5 +529,5 @@ namespace mamba::specs
 auto
 std::hash<mamba::specs::CondaURL>::operator()(const mamba::specs::CondaURL& u) const -> std::size_t
 {
-    return std::hash<mamba::util::URL>()(u.base());
+    return std::hash<mamba::util::URL>()(u.generic());
 }
