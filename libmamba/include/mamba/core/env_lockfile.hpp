@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #include <tl/expected.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "mamba/fs/filesystem.hpp"
 
@@ -117,6 +118,7 @@ namespace mamba
     tl::expected<EnvironmentLockFile, mamba_error>
     read_environment_lockfile(const mamba::fs::u8path& lockfile_location);
 
+    void write_environment_lockfile(ChannelContext& channel_context, const EnvironmentLockFile& lockfile, const mamba::fs::u8path& lockfile_location);
 
     /// Returns `true` if the filename matches names of files which should be interpreted as conda
     /// environment lockfile. NOTE: this does not check if the file exists.

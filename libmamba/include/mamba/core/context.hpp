@@ -95,6 +95,8 @@ namespace mamba
 
             std::string log_pattern{ "%^%-9!l%-8n%$ %v" };
             std::size_t log_backtrace{ 0 };
+
+            fs::u8path output_conda_lock;
         };
 
         struct GraphicsParams

@@ -1672,6 +1672,13 @@ namespace mamba
                    .set_env_var_names()
                    .description("Report all output as json"));
 
+        insert(Configurable("output_conda_lock", &m_context.output_params.output_conda_lock)
+                   .group("Output, Prompt and Flow Control")
+                   .set_rc_configurable()
+                   .needs({ "print_config_only", "print_context_only" })
+                   .set_env_var_names()
+                   .description("Outputs conda lock specification to the specified path"));
+
         insert(Configurable("changeps1", &m_context.change_ps1)
                    .group("Output, Prompt and Flow Control")
                    .set_rc_configurable()
