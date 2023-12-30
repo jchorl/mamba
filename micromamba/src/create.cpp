@@ -16,5 +16,12 @@ set_create_command(CLI::App* subcom, Configuration& config)
 {
     init_install_options(subcom, config);
 
+    auto& output_conda_lock = config.at("output_conda_lock");
+    subcom->add_option(
+        "--output-conda-lock",
+        output_conda_lock.get_cli_config<fs::u8path>(),
+        output_conda_lock.description()
+    );
+
     subcom->callback([&] { return mamba::create(config); });
 }

@@ -619,11 +619,16 @@ namespace mamba
             trans.log_json();
         }
 
+        if (!ctx.output_params.output_conda_lock.empty())
+        {
+            trans.output_conda_lock(ctx.output_params.output_conda_lock, config.at("others_pkg_mgrs_specs").value<std::vector<detail::other_pkg_mgr_spec>>());
+        }
+
         Console::stream();
 
-        if (trans.prompt())
+        if (!ctx.dry_run && trans.prompt())
         {
-            if (create_env && !ctx.dry_run)
+            if (create_env)
             {
                 detail::create_target_directory(ctx, ctx.prefix_params.target_prefix);
             }

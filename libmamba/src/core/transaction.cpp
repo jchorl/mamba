@@ -835,6 +835,68 @@ namespace mamba
         add_json(to_unlink, "UNLINK");
     }
 
+    void MTransaction::output_conda_lock(const fs::u8path output_file, std::vector<detail::other_pkg_mgr_spec> others_pkg_mgrs_specs)
+    {
+        std::vector<EnvironmentLockFile::Package> packages;
+
+        for_each_to_install(
+            m_solution.actions,
+            [&](const auto& pkg)
+            {
+                EnvironmentLockFile::Package package{
+                    /* .info = */ pkg,
+                    /* .is_optional = */ false,
+                    /* .category = */ "main", // TODO fill for real
+                    /* .manager = */ "conda",
+                    /* .platform = */ m_pool.context().platform,
+                };
+                packages.push_back(package);
+            }
+        );
+
+        for (auto other_spec : others_pkg_mgrs_specs)
+        {
+            if (other_spec.pkg_mgr != "pip") {
+                throw std::runtime_error(fmt::format("Unsupported package manager: %s", other_spec.pkg_mgr));
+            }
+
+            for (auto dep : other_spec.deps)
+            {
+                EnvironmentLockFile::Package package{
+                    /* .info = */ mamba::PackageInfo { dep },
+                    /* .is_optional = */ false,
+                    /* .category = */ "main", // TODO fill for real
+                    /* .manager = */ "pip",
+                    /* .platform = */ m_pool.context().platform,
+                };
+                packages.push_back(package);
+            }
+        }
+
+        std::vector<EnvironmentLockFile::Channel> channels;
+        for (const auto& channel : m_pool.context().channels) {
+            channels.push_back({
+                /* .url = */ channel,
+                /* .used_env_vars = */ {},
+            });
+        }
+
+        EnvironmentLockFile::Meta meta = {
+            /* .content_hash = */ {
+                {m_pool.context().platform, "<invalid TODO>"}, // TODO fill like conda-lock: https://github.com/conda/conda-lock/blob/c18d8f2a3c172584a1b8fee2233f767e158fb3f5/conda_lock/models/lock_spec.py#L79
+            },
+            /* .channels = */ channels,
+            /* .platforms = */ m_pool.context().platforms(),
+            /* .sources = */ {"environment.yml"}, // TODO I don't think we have this value here
+        };
+        EnvironmentLockFile lock_file(
+            meta,
+            packages
+        );
+
+        write_environment_lockfile(m_pool.channel_context(), lock_file, output_file);
+    }
+
     namespace
     {
         using FetcherList = std::vector<PackageFetcher>;
@@ -1454,17 +1516,28 @@ namespace mamba
         if (!pip_packages.empty())
         {
             std::vector<std::string> pip_specs = {};
-            pip_specs.reserve(pip_packages.size());
-            std::transform(
-                pip_packages.cbegin(),
-                pip_packages.cend(),
-                std::back_inserter(pip_specs),
-                [](const PackageInfo& pkg)
-                { return fmt::format("{} @ {}#sha256={}", pkg.name, pkg.url, pkg.sha256); }
-            );
-            other_specs.push_back(
-                { "pip --no-deps", pip_specs, fs::absolute(env_lockfile_path.parent_path()).string() }
-            );
+            std::vector<std::string> pip_no_deps_specs = {};
+
+            for (const auto& pkg : pip_packages) {
+                if (pkg.url != "") {
+                    pip_no_deps_specs.push_back(fmt::format("{} @ {}#sha256={}", pkg.name, pkg.url, pkg.sha256));
+                } else if (util::ends_with(pkg.name, " --no-deps")) {
+                    pip_no_deps_specs.push_back(std::string{util::remove_suffix(pkg.name, " --no-deps")});
+                } else {
+                    pip_specs.push_back(pkg.name);
+                }
+            }
+
+            if (!pip_no_deps_specs.empty()) {
+                other_specs.push_back(
+                    { "pip --no-deps", pip_no_deps_specs, fs::absolute(env_lockfile_path.parent_path()).string() }
+                );
+            }
+            if (!pip_specs.empty()) {
+                other_specs.push_back(
+                    { "pip", pip_specs, fs::absolute(env_lockfile_path.parent_path()).string() }
+                );
+            }
         }
 
         return MTransaction{ pool, conda_packages, package_caches };
